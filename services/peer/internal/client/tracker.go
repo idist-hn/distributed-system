@@ -15,6 +15,7 @@ type TrackerClient struct {
 	baseURL    string
 	httpClient *http.Client
 	peerID     string
+	apiKey     string
 }
 
 // NewTrackerClient creates a new tracker client
@@ -25,6 +26,18 @@ func NewTrackerClient(trackerURL, peerID string) *TrackerClient {
 			Timeout: 10 * time.Second,
 		},
 		peerID: peerID,
+	}
+}
+
+// NewTrackerClientWithAPIKey creates a new tracker client with API key authentication
+func NewTrackerClientWithAPIKey(trackerURL, peerID, apiKey string) *TrackerClient {
+	return &TrackerClient{
+		baseURL: trackerURL,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+		peerID: peerID,
+		apiKey: apiKey,
 	}
 }
 
@@ -59,6 +72,9 @@ func (c *TrackerClient) Leave() error {
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	if err != nil {
 		return err
+	}
+	if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -101,13 +117,22 @@ func (c *TrackerClient) GetPeers(fileHash string) (*protocol.GetPeersResponse, e
 
 // Helper methods
 
-func (c *TrackerClient) post(path string, body interface{}, result interface{}) error {
+func (c *TrackerClient) post(path string, body any, result any) error {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
 
-	resp, err := c.httpClient.Post(c.baseURL+path, "application/json", bytes.NewReader(data))
+	req, err := http.NewRequest(http.MethodPost, c.baseURL+path, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
+	}
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -120,8 +145,16 @@ func (c *TrackerClient) post(path string, body interface{}, result interface{}) 
 	return json.NewDecoder(resp.Body).Decode(result)
 }
 
-func (c *TrackerClient) get(path string, result interface{}) error {
-	resp, err := c.httpClient.Get(c.baseURL + path)
+func (c *TrackerClient) get(path string, result any) error {
+	req, err := http.NewRequest(http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return err
+	}
+	if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
+	}
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
 	}

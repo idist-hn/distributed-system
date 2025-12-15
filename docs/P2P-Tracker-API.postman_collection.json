@@ -1,0 +1,268 @@
+{
+  "info": {
+    "name": "P2P Tracker API",
+    "description": "API collection for P2P File Sharing Tracker v1.2.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://p2p.idist.dev",
+      "type": "string"
+    },
+    {
+      "key": "admin_api_key",
+      "value": "admin-key-2024",
+      "type": "string"
+    },
+    {
+      "key": "peer_api_key",
+      "value": "peer-key-001",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/health"
+          }
+        },
+        {
+          "name": "Health Detailed",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "X-API-Key", "value": "{{admin_api_key}}"}
+            ],
+            "url": "{{base_url}}/health/detailed"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Peers",
+      "item": [
+        {
+          "name": "Register Peer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"test-peer-001\",\n  \"ip\": \"192.168.1.100\",\n  \"port\": 6881,\n  \"hostname\": \"my-peer-node\"\n}"
+            },
+            "url": "{{base_url}}/api/peers/register"
+          }
+        },
+        {
+          "name": "Heartbeat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"peer_id\": \"test-peer-001\",\n  \"files\": [\"hash1\", \"hash2\"]\n}"
+            },
+            "url": "{{base_url}}/api/peers/heartbeat"
+          }
+        },
+        {
+          "name": "Top Peers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/peers/top?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "peers", "top"],
+              "query": [{"key": "limit", "value": "10"}]
+            }
+          }
+        },
+        {
+          "name": "Report Stats",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"peer_id\": \"test-peer-001\",\n  \"bytes_uploaded\": 1024000,\n  \"bytes_downloaded\": 512000,\n  \"files_shared\": 5\n}"
+            },
+            "url": "{{base_url}}/api/peers/stats"
+          }
+        },
+        {
+          "name": "Leave (Unregister)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"}
+            ],
+            "url": "{{base_url}}/api/peers/test-peer-001"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Files",
+      "item": [
+        {
+          "name": "List Files",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"}
+            ],
+            "url": "{{base_url}}/api/files"
+          }
+        },
+        {
+          "name": "Search Files",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/files/search?q=test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", "search"],
+              "query": [{"key": "q", "value": "test"}]
+            }
+          }
+        },
+        {
+          "name": "Announce File",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"peer_id\": \"test-peer-001\",\n  \"file\": {\n    \"hash\": \"abc123def456\",\n    \"name\": \"example.txt\",\n    \"size\": 1024,\n    \"chunk_size\": 262144,\n    \"chunks\": [\n      {\"index\": 0, \"hash\": \"chunk0hash\", \"size\": 1024}\n    ]\n  }\n}"
+            },
+            "url": "{{base_url}}/api/files/announce"
+          }
+        },
+        {
+          "name": "Get File Peers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"}
+            ],
+            "url": "{{base_url}}/api/files/abc123def456/peers"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"}
+            ],
+            "url": "{{base_url}}/api/categories"
+          }
+        },
+        {
+          "name": "Files by Category",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "X-API-Key", "value": "{{peer_api_key}}"}
+            ],
+            "url": "{{base_url}}/api/categories/documents/files"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "List All Peers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "X-API-Key", "value": "{{admin_api_key}}"}
+            ],
+            "url": "{{base_url}}/api/admin/peers"
+          }
+        },
+        {
+          "name": "Kick Peer",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {"key": "X-API-Key", "value": "{{admin_api_key}}"}
+            ],
+            "url": "{{base_url}}/api/admin/peers/test-peer-001"
+          }
+        },
+        {
+          "name": "Delete File",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {"key": "X-API-Key", "value": "{{admin_api_key}}"}
+            ],
+            "url": "{{base_url}}/api/admin/files/abc123def456"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Relay",
+      "item": [
+        {
+          "name": "Get Relay Peers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "X-API-Key", "value": "{{admin_api_key}}"}
+            ],
+            "url": "{{base_url}}/api/relay/peers"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/metrics"
+          }
+        }
+      ]
+    }
+  ]
+}
+

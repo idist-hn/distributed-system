@@ -3,11 +3,37 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/p2p-filesharing/distributed-system/pkg/protocol"
 	"github.com/p2p-filesharing/distributed-system/services/tracker/internal/models"
 	"github.com/p2p-filesharing/distributed-system/services/tracker/internal/storage"
 )
+
+// getRealIP extracts the real client IP from the request
+func getRealIP(r *http.Request) string {
+	// Check X-Forwarded-For header (set by proxies/load balancers)
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-For can contain multiple IPs, take the first one
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+
+	// Check X-Real-IP header
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+
+	// Fall back to RemoteAddr
+	ip := r.RemoteAddr
+	// Remove port if present
+	if colonIdx := strings.LastIndex(ip, ":"); colonIdx != -1 {
+		ip = ip[:colonIdx]
+	}
+	return ip
+}
 
 // Handler holds dependencies for HTTP handlers
 type Handler struct {
@@ -43,9 +69,15 @@ func (h *Handler) RegisterPeer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get real IP from request if peer sends localhost
+	peerIP := req.IP
+	if peerIP == "" || peerIP == "127.0.0.1" || peerIP == "localhost" {
+		peerIP = getRealIP(r)
+	}
+
 	peer := &models.Peer{
 		ID:       req.PeerID,
-		IP:       req.IP,
+		IP:       peerIP,
 		Port:     req.Port,
 		Hostname: req.Hostname,
 	}

@@ -1,0 +1,14 @@
+[Unit]
+Description=P2P Peer Node
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/root/peer -tracker https://p2p.idist.dev -api-key peer-key-001 -port 6881 -data /root/p2p-data -daemon
+Restart=always
+RestartSec=5
+Environment=HOME=/root
+
+[Install]
+WantedBy=multi-user.target
+

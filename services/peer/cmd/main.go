@@ -4,9 +4,12 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -24,12 +27,14 @@ func main() {
 	port := flag.Int("port", 6881, "P2P listen port")
 	dataDir := flag.String("data", "./data", "Data directory")
 	daemon := flag.Bool("daemon", false, "Run in daemon mode (no CLI)")
+	apiKey := flag.String("api-key", "", "API key for tracker authentication")
 	flag.Parse()
 
 	// Generate peer ID
 	peerID := uuid.New().String()
 	log.Printf("=== P2P File Sharing - Peer Node ===")
 	log.Printf("Peer ID: %s", peerID)
+	log.Printf("Tracker: %s", *trackerURL)
 
 	// Initialize storage
 	store, err := storage.NewLocalStorage(*dataDir)
@@ -38,7 +43,13 @@ func main() {
 	}
 
 	// Initialize tracker client
-	tracker := client.NewTrackerClient(*trackerURL, peerID)
+	var tracker *client.TrackerClient
+	if *apiKey != "" {
+		log.Printf("Using API key authentication")
+		tracker = client.NewTrackerClientWithAPIKey(*trackerURL, peerID, *apiKey)
+	} else {
+		tracker = client.NewTrackerClient(*trackerURL, peerID)
+	}
 
 	// Initialize P2P server
 	p2pServer := p2p.NewServer(*port, peerID, store)
@@ -54,8 +65,12 @@ func main() {
 		log.Fatalf("Failed to start P2P server: %v", err)
 	}
 
+	// Get public IP
+	publicIP := getPublicIP()
+	log.Printf("Public IP: %s", publicIP)
+
 	// Register with tracker
-	resp, err := tracker.Register("127.0.0.1", *port)
+	resp, err := tracker.Register(publicIP, *port)
 	if err != nil {
 		log.Fatalf("Failed to register with tracker: %v", err)
 	}
@@ -70,6 +85,19 @@ func main() {
 	// Run in daemon mode or CLI mode
 	if *daemon {
 		log.Println("Running in daemon mode...")
+
+		// Create shared directory if not exists
+		sharedDir := filepath.Join(*dataDir, "shared")
+		if err := os.MkdirAll(sharedDir, 0755); err != nil {
+			log.Printf("Failed to create shared directory: %v", err)
+		} else {
+			log.Printf("Shared directory: %s", sharedDir)
+			// Initial scan
+			scanAndShareFiles(sharedDir, tracker, store, fileChunker)
+			// Start periodic scan
+			go startFileScan(sharedDir, tracker, store, fileChunker)
+		}
+
 		// Block forever, waiting for shutdown signal
 		select {}
 	} else {
@@ -87,6 +115,61 @@ func startHeartbeat(tracker *client.TrackerClient, store *storage.LocalStorage) 
 		if _, err := tracker.Heartbeat(hashes); err != nil {
 			log.Printf("Heartbeat failed: %v", err)
 		}
+	}
+}
+
+// scanAndShareFiles scans the shared directory and announces all files to tracker
+func scanAndShareFiles(sharedDir string, tracker *client.TrackerClient, store *storage.LocalStorage, c *chunker.Chunker) {
+	entries, err := os.ReadDir(sharedDir)
+	if err != nil {
+		log.Printf("Error reading shared directory: %v", err)
+		return
+	}
+
+	sharedCount := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue // Skip directories for now
+		}
+
+		filePath := filepath.Join(sharedDir, entry.Name())
+
+		// Check if already shared
+		if store.IsFileShared(filePath) {
+			continue
+		}
+
+		// Chunk and share file
+		metadata, err := c.ChunkFile(filePath)
+		if err != nil {
+			log.Printf("Error chunking file %s: %v", entry.Name(), err)
+			continue
+		}
+
+		store.AddSharedFile(metadata, filePath)
+
+		resp, err := tracker.AnnounceFile(metadata)
+		if err != nil {
+			log.Printf("Error announcing file %s: %v", entry.Name(), err)
+			continue
+		}
+
+		log.Printf("Shared: %s (hash: %s, %d chunks)", metadata.Name, resp.FileID, len(metadata.Chunks))
+		sharedCount++
+	}
+
+	if sharedCount > 0 {
+		log.Printf("Shared %d new files from %s", sharedCount, sharedDir)
+	}
+}
+
+// startFileScan periodically scans for new files in the shared directory
+func startFileScan(sharedDir string, tracker *client.TrackerClient, store *storage.LocalStorage, c *chunker.Chunker) {
+	ticker := time.NewTicker(60 * time.Second) // Scan every 60 seconds
+	defer ticker.Stop()
+
+	for range ticker.C {
+		scanAndShareFiles(sharedDir, tracker, store, c)
 	}
 }
 
@@ -225,4 +308,40 @@ func cmdDownload(fileHash string, tracker *client.TrackerClient, store *storage.
 func cmdStatus(store *storage.LocalStorage) {
 	hashes := store.GetAllSharedHashes()
 	fmt.Printf("Sharing %d files\n", len(hashes))
+}
+
+// getPublicIP retrieves the public IP address of this peer
+func getPublicIP() string {
+	// List of services to try
+	services := []string{
+		"https://api.ipify.org",
+		"https://ifconfig.me/ip",
+		"https://icanhazip.com",
+		"https://ipecho.net/plain",
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	for _, svc := range services {
+		resp, err := client.Get(svc)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				continue
+			}
+			ip := strings.TrimSpace(string(body))
+			if ip != "" {
+				return ip
+			}
+		}
+	}
+
+	// Fallback to localhost if all services fail
+	log.Println("Warning: Could not detect public IP, using 127.0.0.1")
+	return "127.0.0.1"
 }

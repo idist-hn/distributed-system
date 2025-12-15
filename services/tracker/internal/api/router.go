@@ -21,12 +21,14 @@ type Server struct {
 	metrics       *Metrics
 	healthChecker *HealthChecker
 	wsHub         *WSHub
+	relayHub      *RelayHub
 }
 
 // NewServer creates a new tracker server with in-memory storage
 func NewServer(addr string) *Server {
 	store := storage.NewMemoryStorage()
 	wsHub := NewWSHub()
+	relayHub := NewRelayHub()
 	handler := NewHandler(store)
 	handler.SetWSHub(wsHub)
 	return &Server{
@@ -38,6 +40,7 @@ func NewServer(addr string) *Server {
 		metrics:       NewMetrics(),
 		healthChecker: NewHealthChecker(Version, store, "memory"),
 		wsHub:         wsHub,
+		relayHub:      relayHub,
 	}
 }
 
@@ -48,6 +51,7 @@ func NewServerWithDB(addr, dbPath string) (*Server, error) {
 		return nil, err
 	}
 	wsHub := NewWSHub()
+	relayHub := NewRelayHub()
 	handler := NewHandler(store)
 	handler.SetWSHub(wsHub)
 	return &Server{
@@ -60,6 +64,7 @@ func NewServerWithDB(addr, dbPath string) (*Server, error) {
 		metrics:       NewMetrics(),
 		healthChecker: NewHealthChecker(Version, store, "postgresql"),
 		wsHub:         wsHub,
+		relayHub:      relayHub,
 	}, nil
 }
 
@@ -111,12 +116,44 @@ func (s *Server) SetupRoutes() *http.ServeMux {
 		ServeWS(s.wsHub, w, r)
 	})
 
+	// Relay WebSocket endpoint for P2P tunneling
+	mux.HandleFunc("GET /relay", func(w http.ResponseWriter, r *http.Request) {
+		ServeRelay(s.relayHub, w, r)
+	})
+
+	// Relay status endpoint
+	mux.HandleFunc("GET /api/relay/peers", s.handleRelayPeers)
+
+	// Web Dashboard
+	mux.HandleFunc("GET /dashboard", s.DashboardHandler())
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/dashboard", http.StatusTemporaryRedirect)
+			return
+		}
+		http.NotFound(w, r)
+	})
+
 	return mux
 }
 
 // GetWSHub returns the WebSocket hub for broadcasting events
 func (s *Server) GetWSHub() *WSHub {
 	return s.wsHub
+}
+
+// GetRelayHub returns the Relay hub for P2P tunneling
+func (s *Server) GetRelayHub() *RelayHub {
+	return s.relayHub
+}
+
+// handleRelayPeers returns list of peers connected to relay
+func (s *Server) handleRelayPeers(w http.ResponseWriter, r *http.Request) {
+	peers := s.relayHub.GetConnectedPeers()
+	sendJSON(w, http.StatusOK, map[string]interface{}{
+		"count": len(peers),
+		"peers": peers,
+	})
 }
 
 // StartCleanup starts a goroutine to cleanup offline peers and update metrics
@@ -144,6 +181,10 @@ func (s *Server) Run() error {
 	// Start WebSocket hub
 	go s.wsHub.Run()
 	log.Println("[Tracker] WebSocket hub started")
+
+	// Start Relay hub
+	go s.relayHub.Run()
+	log.Println("[Tracker] Relay hub started")
 
 	// Start cleanup routine (every 60s, timeout 90s)
 	s.StartCleanup(60*time.Second, 90*time.Second)
