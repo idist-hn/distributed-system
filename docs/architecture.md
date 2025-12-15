@@ -2,93 +2,257 @@
 
 ## 1. Tổng Quan
 
-Hệ thống chia sẻ file ngang hàng (P2P) cho phép các peer trao đổi file trực tiếp với nhau mà không cần server trung gian lưu trữ file.
+Hệ thống chia sẻ file ngang hàng (P2P) cho phép các peer trao đổi file trực tiếp với nhau mà không cần server trung gian lưu trữ file. Sử dụng mô hình **Hybrid P2P** với Tracker đóng vai trò điều phối.
 
-### Mô Hình: Hybrid P2P (với Tracker)
+## 2. Kiến Trúc Tổng Thể
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    TRACKER SERVER                           │
-│  - Quản lý danh sách peers                                  │
-│  - Quản lý metadata files (tên, hash, size, chunks)         │
-│  - Không lưu file thực tế                                   │
-└─────────────────────────────────────────────────────────────┘
-           │                    │                    │
-           ▼                    ▼                    ▼
-    ┌──────────┐         ┌──────────┐         ┌──────────┐
-    │  PEER A  │◄───────►│  PEER B  │◄───────►│  PEER C  │
-    │ (Seeder) │         │(Leecher) │         │ (Seeder) │
-    └──────────┘         └──────────┘         └──────────┘
-         ▲                                          │
-         └──────────────────────────────────────────┘
-                    Trao đổi file trực tiếp
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           TRACKER SERVER                                 │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │                         HTTP Server (:8080)                         │ │
+│  ├──────────────┬──────────────┬──────────────┬───────────────────────┤ │
+│  │  REST API    │  WebSocket   │  Dashboard   │  Hole Punch           │ │
+│  │  /api/*      │  /ws, /relay │  /dashboard  │  Coordinator (UDP)    │ │
+│  └──────────────┴──────────────┴──────────────┴───────────────────────┘ │
+│                                    │                                     │
+│  ┌────────────────────────────────▼────────────────────────────────────┐│
+│  │                       In-Memory Storage                              ││
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  ││
+│  │  │ Peer Store  │  │ File Store  │  │ Relay Hub   │                  ││
+│  │  │ - ID, Addr  │  │ - Hash      │  │ - Peer Conn │                  ││
+│  │  │ - Status    │  │ - Chunks    │  │ - Messages  │                  ││
+│  │  │ - Files     │  │ - Seeders   │  │ - Buffering │                  ││
+│  │  └─────────────┘  └─────────────┘  └─────────────┘                  ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌───────────────┐     ┌───────────────┐     ┌───────────────┐
+│    PEER A     │     │    PEER B     │     │    PEER C     │
+│  (Seeder)     │     │  (Leecher)    │     │  (Seeder)     │
+├───────────────┤     ├───────────────┤     ├───────────────┤
+│┌─────────────┐│     │┌─────────────┐│     │┌─────────────┐│
+││ TCP Server  ││     ││ TCP Server  ││     ││ TCP Server  ││
+││   :6881     ││     ││   :6882     ││     ││   :6883     ││
+│└─────────────┘│     │└─────────────┘│     │└─────────────┘│
+│┌─────────────┐│     │┌─────────────┐│     │┌─────────────┐│
+││ Connection  ││     ││ Connection  ││     ││ Connection  ││
+││  Manager    ││     ││  Manager    ││     ││  Manager    ││
+│└─────────────┘│     │└─────────────┘│     │└─────────────┘│
+│┌─────────────┐│     │┌─────────────┐│     │┌─────────────┐│
+││  Storage    ││     ││  Storage    ││     ││  Storage    ││
+││  ./data/    ││     ││  ./data/    ││     ││  ./data/    ││
+│└─────────────┘│     │└─────────────┘│     │└─────────────┘│
+└───────────────┘     └───────────────┘     └───────────────┘
+        ▲                     │                     ▲
+        └──────────── Direct P2P Transfer ─────────┘
 ```
 
-## 2. Các Thành Phần
+## 3. Thành Phần Chi Tiết
 
-### 2.1 Tracker Server
-- **Vai trò**: Điều phối, không lưu file
-- **Chức năng**:
-  - Quản lý registry của peers (online/offline)
-  - Lưu metadata của files đang được chia sẻ
-  - Cung cấp danh sách peers có file cần tải
+### 3.1 Tracker Server
 
-### 2.2 Peer Node
-- **Seeder**: Peer có file hoàn chỉnh, chia sẻ cho người khác
-- **Leecher**: Peer đang tải file
-- **Chức năng**:
-  - Kết nối và đăng ký với Tracker
-  - Chia file thành chunks, tính hash
-  - Upload/Download chunks với các peers khác
-  - Verify tính toàn vẹn của chunks
+| Module | File | Chức năng |
+|--------|------|-----------|
+| REST API | `api/handlers.go` | CRUD peers, files |
+| WebSocket | `api/websocket.go` | Real-time events |
+| Relay Hub | `api/relay.go` | NAT traversal relay |
+| Dashboard | `api/dashboard.go` | Web UI monitoring |
+| Middleware | `api/middleware.go` | Auth, logging, metrics |
+| Storage | `storage/storage.go` | In-memory data store |
 
-## 3. Luồng Hoạt Động
+### 3.2 Peer Node
 
-### 3.1 Upload (Chia sẻ file mới)
-1. Peer chia file thành chunks (256KB - 1MB mỗi chunk)
-2. Tính SHA-256 hash cho mỗi chunk và toàn bộ file
-3. Gửi metadata (file info + chunk hashes) lên Tracker
-4. Tracker lưu metadata và đánh dấu peer là seeder
+| Module | File | Chức năng |
+|--------|------|-----------|
+| Tracker Client | `client/tracker.go` | API communication |
+| P2P Server | `p2p/server.go` | TCP listener for chunks |
+| P2P Client | `p2p/client.go` | Request chunks from peers |
+| Connection Manager | `connection/manager.go` | Strategy: Direct→Punch→Relay |
+| Downloader | `downloader/downloader.go` | Parallel chunk downloads |
+| Relay Client | `relay/client.go` | WebSocket relay tunnel |
+| Storage | `storage/local.go` | File & chunk management |
 
-### 3.2 Download (Tải file)
-1. Peer query Tracker để lấy file metadata
-2. Tracker trả về danh sách peers có file
-3. Peer kết nối trực tiếp với các seeders
-4. Download từng chunk từ các peers (có thể song song)
-5. Verify hash của mỗi chunk
-6. Ghép các chunks thành file hoàn chỉnh
-7. Thông báo Tracker rằng mình cũng là seeder
+### 3.3 Shared Packages (pkg/)
 
-## 4. Công Nghệ Sử Dụng
+| Package | Chức năng |
+|---------|-----------|
+| `chunker` | Chia file thành chunks 256KB |
+| `hash` | SHA-256 hashing |
+| `protocol` | Message definitions |
+| `crypto` | E2E encryption (X25519 + AES-GCM) |
+| `dht` | Kademlia DHT |
+| `holepunch` | UDP NAT hole punching |
+| `merkle` | Merkle tree verification |
+| `throttle` | Bandwidth limiting |
+| `logger` | Structured logging |
+
+## 4. Connection Strategy
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    Connection Manager                         │
+├──────────────────────────────────────────────────────────────┤
+│  Priority 1: Direct TCP Connection                            │
+│  ┌──────────┐         ┌──────────┐                           │
+│  │  Peer A  │ ──TCP──▶│  Peer B  │   ✓ Fastest               │
+│  └──────────┘         └──────────┘   ✓ No overhead           │
+├──────────────────────────────────────────────────────────────┤
+│  Priority 2: UDP Hole Punching (if Direct fails)              │
+│  ┌──────────┐   UDP   ┌──────────┐   UDP   ┌──────────┐      │
+│  │  Peer A  │◄───────▶│ Tracker  │◄───────▶│  Peer B  │      │
+│  └──────────┘         └──────────┘         └──────────┘      │
+│       │                Coordinate                │            │
+│       └──────────── Direct UDP ─────────────────┘            │
+├──────────────────────────────────────────────────────────────┤
+│  Priority 3: WebSocket Relay (if Hole Punch fails)            │
+│  ┌──────────┐   WS    ┌──────────┐    WS   ┌──────────┐      │
+│  │  Peer A  │────────▶│ Tracker  │◀────────│  Peer B  │      │
+│  └──────────┘         │ (Relay)  │         └──────────┘      │
+│                       └──────────┘                            │
+│                       Data forwarded                          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## 5. Luồng Hoạt Động
+
+### 5.1 Share File (Seeder)
+
+```
+Peer                           Tracker
+ │                                │
+ │ 1. Chunk file (256KB each)     │
+ │ 2. Calculate SHA-256 hashes    │
+ │ 3. Build Merkle tree           │
+ │                                │
+ │ ───── POST /api/files/announce ─────▶
+ │       {file_hash, chunks, size}│
+ │                                │
+ │ ◀──── 200 OK ──────────────────│
+ │       File registered          │
+ │                                │
+```
+
+### 5.2 Download File (Leecher)
+
+```
+Leecher                        Tracker                       Seeder
+   │                              │                              │
+   │ ── GET /api/files/{hash} ───▶│                              │
+   │ ◀── {metadata, chunk_hashes} │                              │
+   │                              │                              │
+   │ ── GET /files/{hash}/peers ─▶│                              │
+   │ ◀── [{peer_id, addr}]        │                              │
+   │                              │                              │
+   │                              │                              │
+   │ ═══════════ TRY DIRECT TCP ═══════════════════════════════▶│
+   │                              │                         [OK?]│
+   │ ◀═══════════ CHUNK DATA ═══════════════════════════════════│
+   │                              │                              │
+   │                         [If failed]                         │
+   │                              │                              │
+   │ ═══════════ TRY HOLE PUNCH ══════════════════════════════▶ │
+   │ ◀══════════════════════════════════════════════════════════│
+   │                              │                              │
+   │                         [If failed]                         │
+   │                              │                              │
+   │ ─── WebSocket /relay ───────▶│                              │
+   │                              │◀─── WebSocket /relay ────────│
+   │ ◀════════ RELAY DATA ════════│═══════════════════════════▶ │
+   │                              │                              │
+   │ Verify chunk hash (SHA-256)  │                              │
+   │ Verify Merkle proof          │                              │
+   │ Assemble file                │                              │
+   │                              │                              │
+```
+
+## 6. Data Models
+
+### Peer
+
+```go
+type Peer struct {
+    ID        string    // UUID
+    Address   string    // IP:Port
+    Status    string    // online/offline
+    Files     []string  // File hashes
+    LastSeen  time.Time
+    Bandwidth int64     // Bytes/sec limit
+}
+```
+
+### File
+
+```go
+type File struct {
+    Hash       string      // SHA-256 of entire file
+    Name       string      // Original filename
+    Size       int64       // Total bytes
+    ChunkSize  int         // Bytes per chunk (256KB)
+    Chunks     []ChunkInfo // Hash per chunk
+    MerkleRoot string      // Merkle tree root
+    Seeders    []string    // Peer IDs
+}
+```
+
+### Chunk
+
+```go
+type ChunkInfo struct {
+    Index int
+    Hash  string // SHA-256
+    Size  int
+}
+```
+
+## 7. Security
+
+### 7.1 Authentication
+- API Keys for tracker access
+- Middleware validates `X-API-Key` header
+
+### 7.2 End-to-End Encryption
+- **Key Exchange**: X25519 ECDH
+- **Encryption**: AES-256-GCM
+- **Key Derivation**: HKDF-SHA256
+
+### 7.3 Integrity Verification
+- SHA-256 hash per chunk
+- Merkle tree for efficient verification
+- Reject corrupted chunks
+
+## 8. Công Nghệ Sử Dụng
 
 | Thành phần | Công nghệ | Ghi chú |
 |------------|-----------|---------|
-| Ngôn ngữ | Go / Python | Go cho hiệu năng, Python cho đơn giản |
-| Tracker API | gRPC / REST | gRPC hiệu quả, REST dễ debug |
-| Peer-to-Peer | TCP Socket | Truyền file ổn định |
-| Database | SQLite | Đơn giản, không cần setup |
-| Hash | SHA-256 | Kiểm tra tính toàn vẹn |
-| Serialization | Protocol Buffers / JSON | Định dạng message |
+| Ngôn ngữ | Go 1.21+ | Performance, concurrency |
+| HTTP Framework | gorilla/mux | Routing, middleware |
+| WebSocket | gorilla/websocket | Real-time, relay |
+| Crypto | x/crypto | X25519, HKDF |
+| Container | Docker | Containerization |
+| Orchestration | Kubernetes | Scaling, deployment |
+| Ingress | NGINX | TLS termination |
 
-## 5. Cấu Trúc Thư Mục Dự Án
+## 9. Deployment
 
+### Development
+```bash
+make build
+./bin/tracker &
+./bin/peer -daemon -data ./data
 ```
-distributed-system/
-├── docs/                    # Tài liệu
-├── proto/                   # Protocol Buffers definitions
-├── services/
-│   ├── tracker/            # Tracker Server
-│   │   ├── cmd/            # Entry point
-│   │   ├── internal/       # Business logic
-│   │   └── api/            # API handlers
-│   └── peer/               # Peer Node
-│       ├── cmd/            # Entry point
-│       ├── internal/       # Business logic
-│       └── p2p/            # P2P communication
-├── pkg/                    # Shared packages
-│   ├── protocol/           # Message definitions
-│   ├── chunker/            # File chunking logic
-│   └── hash/               # Hashing utilities
-└── scripts/                # Helper scripts
+
+### Production (Kubernetes)
+```bash
+kubectl apply -f k8s/
+```
+
+### Servers (Bare Metal)
+```bash
+scp bin/peer-linux-amd64 user@server:/opt/p2p/peer
+systemctl start p2p-peer
 ```
 

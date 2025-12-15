@@ -40,4 +40,28 @@ spec:
                 name: tracker
                 port:
                   number: 8080
+          # Web Dashboard
+          - path: /dashboard
+            pathType: Prefix
+            backend:
+              service:
+                name: tracker
+                port:
+                  number: 8080
+          # WebSocket relay
+          - path: /relay
+            pathType: Prefix
+            backend:
+              service:
+                name: tracker
+                port:
+                  number: 8080
+          # WebSocket for peers
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: tracker
+                port:
+                  number: 8080
 
