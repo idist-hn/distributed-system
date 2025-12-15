@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: p2p-ingress
+  namespace: p2p-system
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - p2p.idist.dev
+      secretName: p2p-tls
+  rules:
+    - host: p2p.idist.dev
+      http:
+        paths:
+          # Tracker API
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: tracker
+                port:
+                  number: 8080
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: tracker
+                port:
+                  number: 8080
+

@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: peer
+  namespace: p2p-system
+  labels:
+    app: peer
+    app.kubernetes.io/name: peer
+    app.kubernetes.io/component: node
+spec:
+  serviceName: peer
+  replicas: 3
+  selector:
+    matchLabels:
+      app: peer
+  template:
+    metadata:
+      labels:
+        app: peer
+    spec:
+      imagePullSecrets:
+        - name: registry-credentials
+      containers:
+        - name: peer
+          image: registry.idist.dev/p2p-system/p2p-peer:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 6881
+              name: p2p
+          env:
+            - name: TRACKER_URL
+              value: "http://tracker.p2p-system.svc.cluster.local:8080"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          command: ["/app/peer"]
+          args:
+            - "-tracker=$(TRACKER_URL)"
+            - "-port=6881"
+            - "-data=/data"
+            - "-daemon"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: peer
+  namespace: p2p-system
+  labels:
+    app: peer
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: 6881
+      targetPort: 6881
+      protocol: TCP
+      name: p2p
+  selector:
+    app: peer
+
