@@ -27,6 +27,13 @@ spec:
                 port:
                   number: 8080
           - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: tracker
+                port:
+                  number: 8080
+          - path: /metrics
             pathType: Exact
             backend:
               service:
