@@ -270,7 +270,14 @@ func cmdList(tracker *client.TrackerClient) {
 
 	fmt.Println("\nAvailable files:")
 	for _, f := range resp.Files {
-		fmt.Printf("  [%s] %s (%d bytes) - %d seeders\n", f.Hash[:8], f.Name, f.Size, f.Seeders)
+		hashDisplay := f.Hash
+		if len(hashDisplay) > 8 {
+			hashDisplay = hashDisplay[:8]
+		}
+		if hashDisplay == "" {
+			continue // Skip files with empty hash
+		}
+		fmt.Printf("  [%s] %s (%d bytes) - %d seeders\n", hashDisplay, f.Name, f.Size, f.Seeders)
 	}
 }
 

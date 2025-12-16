@@ -24,6 +24,8 @@ const (
 	EventPeerLeft    = "peer_left"
 	EventFileAdded   = "file_added"
 	EventFileRemoved = "file_removed"
+	EventStatsUpdate = "stats_update"
+	EventPeerUpdate  = "peer_update"
 )
 
 // WSEvent represents a WebSocket event

@@ -22,7 +22,7 @@ Hệ thống chia sẻ file ngang hàng (Peer-to-Peer) được xây dựng bằ
 │         └─────────────────┼──────────────────┘                      │
 │                           ▼                                         │
 │  ┌────────────────────────────────────────────────────────────┐    │
-│  │                    In-Memory Storage                        │    │
+│  │                    PostgreSQL Storage                       │    │
 │  │  • Peer Registry  • File Metadata  • Relay Connections     │    │
 │  └────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
@@ -123,7 +123,7 @@ distributed-system/
 │   │   └── internal/
 │   │       ├── api/              # REST handlers, WebSocket, Dashboard
 │   │       ├── models/           # Data models
-│   │       └── storage/          # In-memory storage
+│   │       └── storage/          # PostgreSQL + Memory storage
 │   └── peer/                     # Peer Node
 │       ├── cmd/                  # Entry point
 │       └── internal/
@@ -141,17 +141,19 @@ distributed-system/
 
 ### Tracker REST API
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check |
-| GET | `/dashboard` | Web UI Dashboard |
-| POST | `/api/peers/register` | Register a peer |
-| POST | `/api/peers/heartbeat` | Peer heartbeat |
-| DELETE | `/api/peers/{id}` | Unregister peer |
-| POST | `/api/files/announce` | Announce new file |
-| GET | `/api/files` | List all files |
-| GET | `/api/files/{hash}` | Get file metadata |
-| GET | `/api/files/{hash}/peers` | Get peers for file |
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/health` | Health check | No |
+| GET | `/dashboard` | Web UI Dashboard | No |
+| GET | `/metrics` | Prometheus metrics | No |
+| POST | `/api/auth/login` | Get JWT token | API Key |
+| POST | `/api/peers/register` | Register a peer | API Key |
+| POST | `/api/peers/heartbeat` | Peer heartbeat | API Key |
+| DELETE | `/api/peers/{id}` | Unregister peer | API Key |
+| POST | `/api/files/announce` | Announce new file | API Key |
+| GET | `/api/files` | List all files | API Key |
+| GET | `/api/files/{hash}` | Get file metadata | API Key |
+| GET | `/api/files/{hash}/peers` | Get peers for file | API Key |
 
 ### WebSocket Endpoints
 

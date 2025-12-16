@@ -52,8 +52,8 @@ func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Skip auth for health check and dashboard
-		if r.URL.Path == "/health" || r.URL.Path == "/dashboard" || r.URL.Path == "/" {
+		// Skip auth for health check, dashboard, metrics, and websocket
+		if r.URL.Path == "/health" || r.URL.Path == "/dashboard" || r.URL.Path == "/" || r.URL.Path == "/metrics" || r.URL.Path == "/ws" {
 			next.ServeHTTP(w, r)
 			return
 		}

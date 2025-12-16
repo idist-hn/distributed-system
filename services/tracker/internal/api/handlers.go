@@ -439,3 +439,137 @@ func sendJSON(w http.ResponseWriter, status int, data interface{}) {
 func sendError(w http.ResponseWriter, status int, message string) {
 	sendJSON(w, status, map[string]string{"error": message})
 }
+
+// GetMagnetLink handles GET /api/files/{hash}/magnet
+func (h *Handler) GetMagnetLink(w http.ResponseWriter, r *http.Request) {
+	hash := r.PathValue("hash")
+	if hash == "" {
+		sendError(w, http.StatusBadRequest, "Missing file hash")
+		return
+	}
+
+	file, ok := h.storage.GetFile(hash)
+	if !ok {
+		sendError(w, http.StatusNotFound, "File not found")
+		return
+	}
+
+	peers := h.storage.GetPeersForFile(hash)
+
+	// Build magnet URI
+	magnetURI := "magnet:?xt=urn:sha256:" + file.Hash
+	magnetURI += "&dn=" + file.Name
+	magnetURI += "&xl=" + itoa(int(file.Size))
+
+	// Add tracker
+	scheme := "https"
+	if r.TLS == nil {
+		scheme = "http"
+	}
+	trackerURL := scheme + "://" + r.Host
+	magnetURI += "&tr=" + trackerURL
+
+	// Add chunk info as custom extension
+	if file.ChunkSize > 0 {
+		magnetURI += "&x.cs=" + itoa(int(file.ChunkSize))
+	}
+	if len(file.Chunks) > 0 {
+		magnetURI += "&x.tc=" + itoa(len(file.Chunks))
+	}
+
+	sendJSON(w, http.StatusOK, map[string]interface{}{
+		"magnet":       magnetURI,
+		"file":         file,
+		"seeder_count": len(peers),
+	})
+}
+
+// ParseMagnetLink handles GET /api/magnet?uri=...
+func (h *Handler) ParseMagnetLink(w http.ResponseWriter, r *http.Request) {
+	uri := r.URL.Query().Get("uri")
+	if uri == "" {
+		sendError(w, http.StatusBadRequest, "Missing 'uri' parameter")
+		return
+	}
+
+	// Parse magnet URI
+	if !strings.HasPrefix(uri, "magnet:?") {
+		sendError(w, http.StatusBadRequest, "Invalid magnet URI format")
+		return
+	}
+
+	query := strings.TrimPrefix(uri, "magnet:?")
+	params := make(map[string][]string)
+
+	for _, part := range strings.Split(query, "&") {
+		if idx := strings.Index(part, "="); idx > 0 {
+			key := part[:idx]
+			value := part[idx+1:]
+			params[key] = append(params[key], value)
+		}
+	}
+
+	// Extract info hash
+	infoHash := ""
+	for _, xt := range params["xt"] {
+		if strings.HasPrefix(xt, "urn:sha256:") {
+			infoHash = strings.TrimPrefix(xt, "urn:sha256:")
+			break
+		}
+	}
+
+	if infoHash == "" {
+		sendError(w, http.StatusBadRequest, "Missing info hash in magnet URI")
+		return
+	}
+
+	// Check if file exists in tracker
+	file, exists := h.storage.GetFile(infoHash)
+	peers := h.storage.GetPeersForFile(infoHash)
+
+	response := map[string]interface{}{
+		"info_hash":    infoHash,
+		"display_name": getFirst(params["dn"]),
+		"size":         parseIntDefault(getFirst(params["xl"]), 0),
+		"trackers":     params["tr"],
+		"exists":       exists,
+	}
+
+	if exists {
+		response["file"] = file
+		response["seeder_count"] = len(peers)
+	}
+
+	sendJSON(w, http.StatusOK, response)
+}
+
+// Helper functions
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	s := ""
+	for n > 0 {
+		s = string(rune('0'+n%10)) + s
+		n /= 10
+	}
+	return s
+}
+
+func getFirst(arr []string) string {
+	if len(arr) > 0 {
+		return arr[0]
+	}
+	return ""
+}
+
+func parseIntDefault(s string, def int64) int64 {
+	if s == "" {
+		return def
+	}
+	n, err := parseInt(s)
+	if err != nil {
+		return def
+	}
+	return int64(n)
+}

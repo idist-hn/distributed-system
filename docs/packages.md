@@ -6,15 +6,18 @@ Tài liệu mô tả chi tiết các packages trong hệ thống P2P File Sharin
 
 ```
 pkg/
-├── chunker/      # File chunking (256KB)
-├── crypto/       # E2E encryption
-├── dht/          # Kademlia DHT
-├── hash/         # SHA-256 hashing
-├── holepunch/    # UDP NAT hole punching
-├── logger/       # Structured logging
-├── merkle/       # Merkle tree verification
-├── protocol/     # Message definitions
-└── throttle/     # Bandwidth limiting
+├── chunker/        # File chunking (256KB)
+├── crypto/         # E2E encryption
+├── dht/            # Kademlia DHT
+├── hash/           # SHA-256 hashing
+├── holepunch/      # UDP NAT hole punching
+├── logger/         # Structured logging
+├── magnet/         # Magnet URI parsing & generation
+├── merkle/         # Merkle tree verification
+├── peerscore/      # Peer scoring & selection
+├── pieceselection/ # Smart piece selection algorithms
+├── protocol/       # Message definitions
+└── throttle/       # Bandwidth limiting
 ```
 
 ---
@@ -329,3 +332,108 @@ go test -v ./pkg/merkle/...
 go test -cover ./pkg/...
 ```
 
+---
+
+## 🎯 pkg/pieceselection
+
+**Chức năng**: Smart piece selection algorithms cho P2P downloads.
+
+### Algorithms
+
+| Algorithm | Description | Use Case |
+|-----------|-------------|----------|
+| Rarest First | Download rarest pieces first | Improve swarm health |
+| Random First | Random piece selection | Initial bootstrap |
+| Sequential | Download in order | Streaming |
+
+### API
+
+```go
+// Selector interface
+type Selector interface {
+    SelectNext(pieces []PieceInfo, availablePeers []string) (pieceIndex int, peerID string, ok bool)
+    Name() string
+}
+
+// Create selectors
+selector := pieceselection.NewRarestFirstSelector()
+selector := pieceselection.NewRandomFirstSelector()
+selector := pieceselection.NewSequentialSelector()
+
+// Select next piece
+pieceIdx, peerID, ok := selector.SelectNext(pieces, peers)
+```
+
+---
+
+## 📊 pkg/peerscore
+
+**Chức năng**: Peer scoring và selection dựa trên performance metrics.
+
+### Scoring Components
+
+| Component | Weight | Description |
+|-----------|--------|-------------|
+| Download Speed | 30% | Bytes/second |
+| Upload Ratio | 20% | Tit-for-tat fairness |
+| Reliability | 25% | Success rate |
+| Latency | 15% | Response time |
+| Recency | 10% | Recent activity |
+
+### API
+
+```go
+// Create scorer
+scorer := peerscore.NewScorer(peerscore.DefaultConfig())
+
+// Record activity
+scorer.RecordDownload("peer1", 1024*1024, 50*time.Millisecond)
+scorer.RecordUpload("peer1", 512*1024)
+scorer.RecordFailure("peer1")
+
+// Get score
+score := scorer.GetScore("peer1")
+fmt.Printf("Score: %.2f\n", score.TotalScore)
+
+// Get top peers
+topPeers := scorer.GetTopPeers(10)
+```
+
+---
+
+## 🧲 pkg/magnet
+
+**Chức năng**: Magnet URI parsing và generation cho file sharing.
+
+### Magnet URI Format
+
+```
+magnet:?xt=urn:sha256:<hash>&dn=<name>&xl=<size>&tr=<tracker>&x.cs=<chunksize>&x.tc=<totalchunks>
+```
+
+### API
+
+```go
+// Parse magnet URI
+m, err := magnet.Parse("magnet:?xt=urn:sha256:abc123&dn=file.txt&xl=1024")
+
+// Create new magnet
+m := magnet.New("abc123def456", "myfile.zip", 10485760)
+m.AddTracker("https://tracker.example.com")
+m.SetChunkInfo(262144, 40)
+
+// Generate URI
+uri := m.String()
+// Output: magnet:?xt=urn:sha256:abc123def456&dn=myfile.zip&xl=10485760&tr=...
+```
+
+### Fields
+
+| Field | Parameter | Description |
+|-------|-----------|-------------|
+| InfoHash | `xt` | File hash (SHA-256) |
+| DisplayName | `dn` | File name |
+| Size | `xl` | File size in bytes |
+| Trackers | `tr` | Tracker URLs (multiple) |
+| ChunkSize | `x.cs` | Chunk size (custom extension) |
+| TotalChunks | `x.tc` | Total chunks (custom extension) |

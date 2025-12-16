@@ -15,10 +15,13 @@ func main() {
 
 	log.Println("=== P2P File Sharing - Tracker Server ===")
 
-	// Check DATABASE_URL env if -db not provided
+	// Check POSTGRES_URL or DATABASE_URL env if -db not provided
 	connStr := *dbURL
 	if connStr == "" {
-		connStr = os.Getenv("DATABASE_URL")
+		connStr = os.Getenv("POSTGRES_URL")
+		if connStr == "" {
+			connStr = os.Getenv("DATABASE_URL")
+		}
 	}
 
 	var server *api.Server

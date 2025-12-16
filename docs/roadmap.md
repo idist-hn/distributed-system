@@ -35,47 +35,21 @@ Tài liệu này mô tả lộ trình phát triển các tính năng tiếp theo
 | Bandwidth Throttling | `pkg/throttle` | [docs](features/bandwidth-throttling.md) |
 | Merkle Verification | `pkg/merkle` | [docs](features/merkle-tree-verification.md) |
 
----
+### Phase 4: Production Hardening ✅
+| Feature | Package | Status |
+|---------|---------|--------|
+| PostgreSQL Storage | `services/tracker/internal/storage/postgres.go` | ✅ |
+| JWT Authentication | `services/tracker/internal/api/jwt.go` | ✅ |
+| Rate Limiting | `services/tracker/internal/api/ratelimit.go` | ✅ |
+| Prometheus Metrics | `services/tracker/internal/api/prometheus.go` | ✅ |
+| Grafana Dashboard | `k8s/grafana-dashboard.json` | ✅ |
+| API Key Auth | `services/tracker/internal/api/middleware.go` | ✅ |
 
-## 📋 Phase 4: Production Hardening (Đề xuất tiếp theo)
-
-### 4.1 Persistent Storage
-**Mục tiêu**: Dữ liệu không mất khi restart tracker
-
-| Task | Mô tả | Độ phức tạp |
-|------|-------|-------------|
-| SQLite/PostgreSQL Integration | Lưu peers, files vào database | ⭐⭐ |
-| Redis Cache | Cache hot data, session management | ⭐⭐ |
-| State Recovery | Khôi phục state sau restart | ⭐⭐ |
-
-**Files cần thay đổi**:
-```
-services/tracker/internal/storage/
-├── database.go      # Database connection
-├── sqlite.go        # SQLite implementation
-├── postgres.go      # PostgreSQL implementation
-└── interface.go     # Storage interface
-```
-
-### 4.2 Authentication & Authorization
-**Mục tiêu**: Bảo mật API và phân quyền
-
-| Task | Mô tả | Độ phức tạp |
-|------|-------|-------------|
-| JWT Authentication | Token-based auth cho peers | ⭐⭐ |
-| Role-based Access | Admin, User, Guest roles | ⭐⭐ |
-| OAuth2 Integration | Login via Google, GitHub | ⭐⭐⭐ |
-| Rate Limiting | Prevent API abuse | ⭐ |
-
-### 4.3 Monitoring & Observability
-**Mục tiêu**: Theo dõi và debug hệ thống
-
-| Task | Mô tả | Độ phức tạp |
-|------|-------|-------------|
-| Prometheus Metrics | Export metrics for monitoring | ⭐⭐ |
-| Grafana Dashboards | Visualize system health | ⭐⭐ |
-| Distributed Tracing | Jaeger/OpenTelemetry | ⭐⭐⭐ |
-| Structured Logging | JSON logs, log aggregation | ⭐ |
+**Endpoints**:
+- `/metrics` - Prometheus metrics
+- `/api/auth/login` - JWT token generation
+- `/health` - Health check
+- `/dashboard` - Web UI
 
 ---
 
@@ -132,35 +106,37 @@ services/tracker/internal/storage/
 
 ---
 
-## 📋 Phase 6: Advanced P2P Features
+## ✅ Phase 6: Advanced P2P Features (Partially Complete)
 
-### 6.1 Smart Piece Selection
-**Mục tiêu**: Tối ưu download strategy
+### 6.1 Smart Piece Selection ✅
+**Status**: Implemented in `pkg/pieceselection`
 
-| Algorithm | Mô tả | Độ phức tạp |
-|-----------|-------|-------------|
-| Rarest First | Download rare chunks first | ⭐⭐ |
-| Random First | Bootstrap với random chunks | ⭐ |
-| Endgame Mode | Request cuối cùng từ nhiều peers | ⭐⭐ |
+| Algorithm | Package | Status |
+|-----------|---------|--------|
+| Rarest First | `pieceselection.NewRarestFirstSelector()` | ✅ |
+| Random First | `pieceselection.NewRandomFirstSelector()` | ✅ |
+| Sequential | `pieceselection.NewSequentialSelector()` | ✅ |
+| Endgame Mode | - | 📋 TODO |
 
-### 6.2 Peer Scoring & Selection
-**Mục tiêu**: Chọn peer tốt nhất để download
+### 6.2 Peer Scoring & Selection ✅
+**Status**: Implemented in `pkg/peerscore`
 
-| Metric | Weight | Mô tả |
-|--------|--------|-------|
-| Upload Speed | 40% | Historical upload speed |
-| Latency | 30% | RTT to peer |
-| Reliability | 20% | Uptime, completion rate |
-| Reciprocity | 10% | Tit-for-tat |
+| Metric | Weight | Status |
+|--------|--------|--------|
+| Download Speed | 30% | ✅ |
+| Upload Ratio | 20% | ✅ |
+| Reliability | 25% | ✅ |
+| Latency | 15% | ✅ |
+| Recency | 10% | ✅ |
 
-### 6.3 Content Discovery
-**Mục tiêu**: Tìm kiếm file hiệu quả
+### 6.3 Content Discovery ✅
+**Status**: Implemented
 
-| Task | Mô tả | Độ phức tạp |
-|------|-------|-------------|
-| Full-text Search | Search by filename | ⭐⭐ |
-| Tag-based Discovery | Categorize files | ⭐⭐ |
-| Magnet Links | Share files via magnet URI | ⭐ |
+| Task | Package/Endpoint | Status |
+|------|------------------|--------|
+| Full-text Search | `GET /api/files/search?q=` | ✅ |
+| Tag-based Discovery | `GET /api/categories` | ✅ |
+| Magnet Links | `pkg/magnet`, `GET /api/files/{hash}/magnet` | ✅ |
 
 ---
 

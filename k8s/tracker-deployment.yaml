@@ -81,6 +81,7 @@ metadata:
 type: Opaque
 stringData:
   api-keys: "peer-key-001,peer-key-002,admin-key-2024"
+  jwt-secret: "p2p-tracker-jwt-secret-2024-production"
 ---
 # Tracker Deployment
 apiVersion: apps/v1
@@ -116,13 +117,18 @@ spec:
           args:
             - "-addr=:8080"
           env:
-            - name: DATABASE_URL
+            - name: POSTGRES_URL
               value: "postgres://tracker:p2p-tracker-2024@postgres:5432/tracker?sslmode=disable"
             - name: API_KEYS
               valueFrom:
                 secretKeyRef:
                   name: tracker-secret
                   key: api-keys
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tracker-secret
+                  key: jwt-secret
             - name: RATE_LIMIT
               value: "100"
             - name: RATE_WINDOW_SECONDS

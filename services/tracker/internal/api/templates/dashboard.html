@@ -6,6 +6,14 @@
     <title>P2P Tracker Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .highlight { animation: highlight 1s ease-out; }
+        @keyframes highlight { from { background-color: rgba(59, 130, 246, 0.3); } to { background-color: transparent; } }
+    </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
     <nav class="bg-gray-800 border-b border-gray-700 px-6 py-4">
@@ -15,48 +23,65 @@
                 <h1 class="text-xl font-bold">P2P Tracker Dashboard</h1>
                 <span class="text-xs bg-blue-600 px-2 py-1 rounded">v{{.Version}}</span>
             </div>
-            <div class="text-sm text-gray-400">
-                Uptime: {{.Uptime}} | Last refresh: {{.LastRefreshed}}
+            <div class="flex items-center space-x-4 text-sm text-gray-400">
+                <span id="ws-status" class="flex items-center">
+                    <span id="ws-indicator" class="w-2 h-2 rounded-full bg-gray-500 mr-2"></span>
+                    <span id="ws-text">Connecting...</span>
+                </span>
+                <span>Uptime: <span id="uptime">{{.Uptime}}</span></span>
+                <span>Updated: <span id="last-update">{{.LastRefreshed}}</span></span>
             </div>
         </div>
     </nav>
 
     <main class="p-6">
+        <!-- Event Toast Container -->
+        <div id="toast-container" class="fixed top-20 right-6 z-50 space-y-2"></div>
+
         <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 transition-all">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-gray-400 text-sm">Peers Online</p>
-                        <p class="text-3xl font-bold text-green-500">{{.PeersOnline}}</p>
+                        <p id="stat-peers-online" class="text-3xl font-bold text-green-500">{{.PeersOnline}}</p>
                     </div>
                     <i data-lucide="users" class="w-10 h-10 text-green-500 opacity-50"></i>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">Total: {{.PeersTotal}}</p>
+                <p class="text-xs text-gray-500 mt-2">Total: <span id="stat-peers-total">{{.PeersTotal}}</span></p>
             </div>
-            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 transition-all">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-gray-400 text-sm">Shared Files</p>
-                        <p class="text-3xl font-bold text-blue-500">{{.FilesCount}}</p>
+                        <p id="stat-files" class="text-3xl font-bold text-blue-500">{{.FilesCount}}</p>
                     </div>
                     <i data-lucide="folder" class="w-10 h-10 text-blue-500 opacity-50"></i>
                 </div>
             </div>
-            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 transition-all">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-gray-400 text-sm">Relay Connections</p>
-                        <p class="text-3xl font-bold text-purple-500">{{.RelayPeers}}</p>
+                        <p id="stat-relay" class="text-3xl font-bold text-purple-500">{{.RelayPeers}}</p>
                     </div>
                     <i data-lucide="radio" class="w-10 h-10 text-purple-500 opacity-50"></i>
                 </div>
             </div>
-            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 transition-all">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">WS Clients</p>
+                        <p id="stat-ws-clients" class="text-3xl font-bold text-yellow-500">0</p>
+                    </div>
+                    <i data-lucide="radio-tower" class="w-10 h-10 text-yellow-500 opacity-50"></i>
+                </div>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 transition-all">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-gray-400 text-sm">System Status</p>
-                        <p class="text-xl font-bold text-green-500">Healthy</p>
+                        <p id="stat-status" class="text-xl font-bold text-green-500">Healthy</p>
                     </div>
                     <i data-lucide="heart-pulse" class="w-10 h-10 text-green-500 opacity-50"></i>
                 </div>
@@ -68,6 +93,7 @@
             <div class="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
                 <h2 class="text-lg font-semibold flex items-center">
                     <i data-lucide="users" class="w-5 h-5 mr-2"></i> Connected Peers
+                    <span id="peers-count" class="ml-2 text-sm font-normal text-gray-400">({{.PeersOnline}})</span>
                 </h2>
             </div>
             <div class="overflow-x-auto">
@@ -83,9 +109,9 @@
                             <th class="px-6 py-3">Download</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-700">
+                    <tbody id="peers-table" class="divide-y divide-gray-700">
                         {{range .Peers}}
-                        <tr class="hover:bg-gray-750">
+                        <tr class="hover:bg-gray-750" data-peer-id="{{.ID}}">
                             <td class="px-6 py-4 font-mono text-sm">{{.ID}}</td>
                             <td class="px-6 py-4">{{.IP}}:{{.Port}}</td>
                             <td class="px-6 py-4">
@@ -101,7 +127,7 @@
                             <td class="px-6 py-4 text-blue-400">{{.BytesDown}}</td>
                         </tr>
                         {{else}}
-                        <tr><td colspan="7" class="px-6 py-8 text-center text-gray-500">No peers connected</td></tr>
+                        <tr id="no-peers-row"><td colspan="7" class="px-6 py-8 text-center text-gray-500">No peers connected</td></tr>
                         {{end}}
                     </tbody>
                 </table>
@@ -113,6 +139,7 @@
             <div class="px-6 py-4 border-b border-gray-700">
                 <h2 class="text-lg font-semibold flex items-center">
                     <i data-lucide="folder" class="w-5 h-5 mr-2"></i> Shared Files
+                    <span id="files-count" class="ml-2 text-sm font-normal text-gray-400">({{.FilesCount}})</span>
                 </h2>
             </div>
             <div class="overflow-x-auto">
@@ -127,9 +154,9 @@
                             <th class="px-6 py-3">Added</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-700">
+                    <tbody id="files-table" class="divide-y divide-gray-700">
                         {{range .Files}}
-                        <tr class="hover:bg-gray-750">
+                        <tr class="hover:bg-gray-750" data-file-hash="{{.Hash}}">
                             <td class="px-6 py-4 font-mono text-sm text-gray-400">{{.Hash}}</td>
                             <td class="px-6 py-4">{{.Name}}</td>
                             <td class="px-6 py-4">{{.Size}}</td>
@@ -138,14 +165,286 @@
                             <td class="px-6 py-4 text-gray-400">{{.AddedAt}}</td>
                         </tr>
                         {{else}}
-                        <tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No files shared</td></tr>
+                        <tr id="no-files-row"><td colspan="6" class="px-6 py-8 text-center text-gray-500">No files shared</td></tr>
                         {{end}}
                     </tbody>
                 </table>
             </div>
         </div>
     </main>
-    <script>lucide.createIcons();</script>
+
+    <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // WebSocket Dashboard Client
+    class DashboardWS {
+        constructor() {
+            this.ws = null;
+            this.reconnectAttempts = 0;
+            this.maxReconnectAttempts = 10;
+            this.reconnectDelay = 1000;
+            this.connect();
+        }
+
+        connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+            try {
+                this.ws = new WebSocket(wsUrl);
+                this.ws.onopen = () => this.onOpen();
+                this.ws.onclose = () => this.onClose();
+                this.ws.onerror = (e) => this.onError(e);
+                this.ws.onmessage = (e) => this.onMessage(e);
+            } catch (e) {
+                console.error('WebSocket connection failed:', e);
+                this.scheduleReconnect();
+            }
+        }
+
+        onOpen() {
+            console.log('WebSocket connected');
+            this.reconnectAttempts = 0;
+            this.updateStatus('connected');
+        }
+
+        onClose() {
+            console.log('WebSocket disconnected');
+            this.updateStatus('disconnected');
+            this.scheduleReconnect();
+        }
+
+        onError(e) {
+            console.error('WebSocket error:', e);
+            this.updateStatus('error');
+        }
+
+        onMessage(event) {
+            try {
+                const msg = JSON.parse(event.data);
+                this.handleEvent(msg);
+            } catch (e) {
+                console.error('Failed to parse WebSocket message:', e);
+            }
+        }
+
+        scheduleReconnect() {
+            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+                console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+                setTimeout(() => this.connect(), delay);
+            }
+        }
+
+        updateStatus(status) {
+            const indicator = document.getElementById('ws-indicator');
+            const text = document.getElementById('ws-text');
+
+            switch (status) {
+                case 'connected':
+                    indicator.className = 'w-2 h-2 rounded-full bg-green-500 mr-2';
+                    text.textContent = 'Live';
+                    break;
+                case 'disconnected':
+                    indicator.className = 'w-2 h-2 rounded-full bg-yellow-500 mr-2 pulse';
+                    text.textContent = 'Reconnecting...';
+                    break;
+                case 'error':
+                    indicator.className = 'w-2 h-2 rounded-full bg-red-500 mr-2';
+                    text.textContent = 'Error';
+                    break;
+            }
+        }
+
+        handleEvent(event) {
+            console.log('Received event:', event.type, event.data);
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+
+            switch (event.type) {
+                case 'peer_joined':
+                    this.onPeerJoined(event.data);
+                    break;
+                case 'peer_left':
+                    this.onPeerLeft(event.data);
+                    break;
+                case 'file_added':
+                    this.onFileAdded(event.data);
+                    break;
+                case 'file_removed':
+                    this.onFileRemoved(event.data);
+                    break;
+                case 'stats_update':
+                    this.onStatsUpdate(event.data);
+                    break;
+            }
+        }
+
+        showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = {
+                'info': 'bg-blue-600',
+                'success': 'bg-green-600',
+                'warning': 'bg-yellow-600',
+                'error': 'bg-red-600'
+            };
+            toast.className = `${colors[type]} text-white px-4 py-2 rounded-lg shadow-lg fade-in flex items-center space-x-2`;
+            toast.innerHTML = `<span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100px)';
+                toast.style.transition = 'all 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        onPeerJoined(data) {
+            this.showToast(`Peer joined: ${data.peer_id?.substring(0, 8) || 'unknown'}...`, 'success');
+
+            // Update stats
+            const peersOnline = document.getElementById('stat-peers-online');
+            const peersTotal = document.getElementById('stat-peers-total');
+            const peersCount = document.getElementById('peers-count');
+
+            peersOnline.textContent = parseInt(peersOnline.textContent) + 1;
+            peersTotal.textContent = parseInt(peersTotal.textContent) + 1;
+            peersCount.textContent = `(${peersOnline.textContent})`;
+
+            // Add row to table
+            this.addPeerRow(data);
+        }
+
+        onPeerLeft(data) {
+            this.showToast(`Peer left: ${data.peer_id?.substring(0, 8) || 'unknown'}...`, 'warning');
+
+            // Update stats
+            const peersOnline = document.getElementById('stat-peers-online');
+            const peersCount = document.getElementById('peers-count');
+            const current = parseInt(peersOnline.textContent);
+            if (current > 0) {
+                peersOnline.textContent = current - 1;
+                peersCount.textContent = `(${current - 1})`;
+            }
+
+            // Remove row from table
+            const row = document.querySelector(`tr[data-peer-id^="${data.peer_id?.substring(0, 8)}"]`);
+            if (row) {
+                row.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                setTimeout(() => row.remove(), 500);
+            }
+        }
+
+        onFileAdded(data) {
+            this.showToast(`File added: ${data.name || 'unknown'}`, 'success');
+
+            // Update stats
+            const filesCount = document.getElementById('stat-files');
+            const filesCountLabel = document.getElementById('files-count');
+            const current = parseInt(filesCount.textContent);
+            filesCount.textContent = current + 1;
+            filesCountLabel.textContent = `(${current + 1})`;
+
+            // Add row to table
+            this.addFileRow(data);
+        }
+
+        onFileRemoved(data) {
+            this.showToast(`File removed: ${data.hash?.substring(0, 8) || 'unknown'}...`, 'warning');
+
+            // Update stats
+            const filesCount = document.getElementById('stat-files');
+            const filesCountLabel = document.getElementById('files-count');
+            const current = parseInt(filesCount.textContent);
+            if (current > 0) {
+                filesCount.textContent = current - 1;
+                filesCountLabel.textContent = `(${current - 1})`;
+            }
+
+            // Remove row
+            const row = document.querySelector(`tr[data-file-hash^="${data.hash?.substring(0, 12)}"]`);
+            if (row) {
+                row.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                setTimeout(() => row.remove(), 500);
+            }
+        }
+
+        onStatsUpdate(data) {
+            if (data.peers_online !== undefined) {
+                document.getElementById('stat-peers-online').textContent = data.peers_online;
+                document.getElementById('peers-count').textContent = `(${data.peers_online})`;
+            }
+            if (data.peers_total !== undefined) {
+                document.getElementById('stat-peers-total').textContent = data.peers_total;
+            }
+            if (data.files_count !== undefined) {
+                document.getElementById('stat-files').textContent = data.files_count;
+                document.getElementById('files-count').textContent = `(${data.files_count})`;
+            }
+            if (data.relay_peers !== undefined) {
+                document.getElementById('stat-relay').textContent = data.relay_peers;
+            }
+            if (data.ws_clients !== undefined) {
+                document.getElementById('stat-ws-clients').textContent = data.ws_clients;
+            }
+        }
+
+        addPeerRow(data) {
+            const tbody = document.getElementById('peers-table');
+            const noRowsEl = document.getElementById('no-peers-row');
+            if (noRowsEl) noRowsEl.remove();
+
+            const peerIdShort = (data.peer_id || '').substring(0, 8) + '...';
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-gray-750 highlight';
+            row.dataset.peerId = peerIdShort;
+            row.innerHTML = `
+                <td class="px-6 py-4 font-mono text-sm">${peerIdShort}</td>
+                <td class="px-6 py-4">${data.ip || '?'}:${data.port || '?'}</td>
+                <td class="px-6 py-4"><span class="px-2 py-1 bg-green-900 text-green-300 rounded text-xs">Online</span></td>
+                <td class="px-6 py-4 text-gray-400">just now</td>
+                <td class="px-6 py-4">0</td>
+                <td class="px-6 py-4 text-green-400">0 B</td>
+                <td class="px-6 py-4 text-blue-400">0 B</td>
+            `;
+            tbody.insertBefore(row, tbody.firstChild);
+        }
+
+        addFileRow(data) {
+            const tbody = document.getElementById('files-table');
+            const noRowsEl = document.getElementById('no-files-row');
+            if (noRowsEl) noRowsEl.remove();
+
+            const hashShort = (data.hash || '').substring(0, 12) + '...';
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-gray-750 highlight';
+            row.dataset.fileHash = hashShort;
+            row.innerHTML = `
+                <td class="px-6 py-4 font-mono text-sm text-gray-400">${hashShort}</td>
+                <td class="px-6 py-4">${data.name || 'Unknown'}</td>
+                <td class="px-6 py-4">${this.formatBytes(data.size || 0)}</td>
+                <td class="px-6 py-4"><span class="px-2 py-1 bg-gray-700 rounded text-xs">other</span></td>
+                <td class="px-6 py-4">1</td>
+                <td class="px-6 py-4 text-gray-400">${new Date().toLocaleString()}</td>
+            `;
+            tbody.insertBefore(row, tbody.firstChild);
+        }
+
+        formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+    }
+
+    // Initialize WebSocket client
+    const dashboard = new DashboardWS();
+    </script>
 </body>
 </html>
 
