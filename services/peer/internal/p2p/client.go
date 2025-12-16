@@ -91,18 +91,23 @@ func (pc *PeerConnection) RequestChunk(fileHash string, chunkIndex int, expected
 		return nil, err
 	}
 
-	// Receive response
+	// Receive response as raw JSON first
+	var rawMsg json.RawMessage
+	if err := pc.decoder.Decode(&rawMsg); err != nil {
+		return nil, err
+	}
+
+	// Parse message type
 	var baseMsg struct {
 		Type protocol.MessageType `json:"type"`
 	}
-
-	if err := pc.decoder.Decode(&baseMsg); err != nil {
+	if err := json.Unmarshal(rawMsg, &baseMsg); err != nil {
 		return nil, err
 	}
 
 	if baseMsg.Type == protocol.MsgError {
 		var errMsg protocol.ErrorMessage
-		if err := pc.decoder.Decode(&errMsg); err != nil {
+		if err := json.Unmarshal(rawMsg, &errMsg); err != nil {
 			return nil, err
 		}
 		return nil, fmt.Errorf("peer error %d: %s", errMsg.Code, errMsg.Message)
@@ -113,7 +118,7 @@ func (pc *PeerConnection) RequestChunk(fileHash string, chunkIndex int, expected
 	}
 
 	var resp protocol.ChunkDataMessage
-	if err := pc.decoder.Decode(&resp); err != nil {
+	if err := json.Unmarshal(rawMsg, &resp); err != nil {
 		return nil, err
 	}
 

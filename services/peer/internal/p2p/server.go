@@ -32,16 +32,36 @@ func NewServer(port int, peerID string, store *storage.LocalStorage) *Server {
 
 // Start starts the P2P server
 func (s *Server) Start() error {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
-	if err != nil {
-		return err
+	return s.StartWithRetry(10) // Try up to 10 different ports
+}
+
+// StartWithRetry tries to start server, automatically finding an available port if needed
+func (s *Server) StartWithRetry(maxRetries int) error {
+	originalPort := s.port
+
+	for i := 0; i < maxRetries; i++ {
+		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
+		if err == nil {
+			s.listener = listener
+			if s.port != originalPort {
+				log.Printf("[P2P Server] Port %d was busy, using port %d instead", originalPort, s.port)
+			}
+			log.Printf("[P2P Server] Listening on port %d\n", s.port)
+			go s.acceptConnections()
+			return nil
+		}
+
+		// Port is busy, try next port
+		log.Printf("[P2P Server] Port %d is busy, trying port %d...", s.port, s.port+1)
+		s.port++
 	}
-	s.listener = listener
 
-	log.Printf("[P2P Server] Listening on port %d\n", s.port)
+	return fmt.Errorf("could not find available port after %d attempts (tried %d-%d)", maxRetries, originalPort, s.port-1)
+}
 
-	go s.acceptConnections()
-	return nil
+// GetPort returns the actual port the server is listening on
+func (s *Server) GetPort() int {
+	return s.port
 }
 
 // Stop stops the P2P server
@@ -209,9 +229,4 @@ func (s *Server) sendError(encoder *json.Encoder, code int, message string) {
 		Message: message,
 	}
 	encoder.Encode(resp)
-}
-
-// GetPort returns the server port
-func (s *Server) GetPort() int {
-	return s.port
 }

@@ -94,26 +94,26 @@ Hệ thống chia sẻ file ngang hàng (P2P) cho phép các peer trao đổi fi
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    Connection Manager                         │
+│                    Connection Manager                        │
 ├──────────────────────────────────────────────────────────────┤
-│  Priority 1: Direct TCP Connection                            │
+│  Priority 1: Direct TCP Connection                           │
 │  ┌──────────┐         ┌──────────┐                           │
 │  │  Peer A  │ ──TCP──▶│  Peer B  │   ✓ Fastest               │
 │  └──────────┘         └──────────┘   ✓ No overhead           │
 ├──────────────────────────────────────────────────────────────┤
-│  Priority 2: UDP Hole Punching (if Direct fails)              │
+│  Priority 2: UDP Hole Punching (if Direct fails)             │
 │  ┌──────────┐   UDP   ┌──────────┐   UDP   ┌──────────┐      │
 │  │  Peer A  │◄───────▶│ Tracker  │◄───────▶│  Peer B  │      │
 │  └──────────┘         └──────────┘         └──────────┘      │
-│       │                Coordinate                │            │
-│       └──────────── Direct UDP ─────────────────┘            │
+│       │                Coordinate                │           │
+│       └──────────── Direct UDP ──────────────────┘           │
 ├──────────────────────────────────────────────────────────────┤
-│  Priority 3: WebSocket Relay (if Hole Punch fails)            │
+│  Priority 3: WebSocket Relay (if Hole Punch fails)           │
 │  ┌──────────┐   WS    ┌──────────┐    WS   ┌──────────┐      │
 │  │  Peer A  │────────▶│ Tracker  │◀────────│  Peer B  │      │
 │  └──────────┘         │ (Relay)  │         └──────────┘      │
-│                       └──────────┘                            │
-│                       Data forwarded                          │
+│                       └──────────┘                           │
+│                       Data forwarded                         │
 └──────────────────────────────────────────────────────────────┘
 ```
 

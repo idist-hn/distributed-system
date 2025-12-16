@@ -4,10 +4,21 @@
 
 Phase 4 tập trung vào việc chuẩn bị hệ thống cho môi trường production với các tính năng:
 - PostgreSQL persistent storage
-- JWT Authentication
+- API Key Authentication
+- JWT Token Authentication
 - Rate Limiting
 - Prometheus Metrics
 - Grafana Dashboard
+- Health Check Endpoints
+
+## Live System
+
+| Endpoint | URL |
+|----------|-----|
+| Dashboard | https://p2p.idist.dev/dashboard |
+| Health | https://p2p.idist.dev/health |
+| Metrics | https://p2p.idist.dev/metrics |
+| API | https://p2p.idist.dev/api/* |
 
 ## 1. PostgreSQL Storage
 
@@ -209,16 +220,139 @@ env:
         key: api-keys
 ```
 
+## 6. API Key Authentication
+
+### Mô tả
+Simple API key authentication cho tất cả API endpoints.
+
+### Cấu hình
+```bash
+# Environment variable - comma-separated keys
+API_KEYS=peer-key-001,peer-key-002,admin-key-001
+```
+
+### Usage
+```bash
+curl -H "X-API-Key: peer-key-001" https://p2p.idist.dev/api/files
+```
+
+### Public Endpoints (không cần auth)
+- `/health` - Health check
+- `/dashboard` - Web UI
+- `/metrics` - Prometheus metrics
+- `/ws` - WebSocket (realtime updates)
+- `/` - Root redirect
+
+### Package
+- `services/tracker/internal/api/middleware.go`
+
+## 7. Health Check
+
+### Endpoints
+
+```bash
+# Simple health check
+GET /health
+Response: OK
+
+# Detailed health check
+GET /health/detailed
+Response:
+{
+  "status": "healthy",
+  "database": "connected",
+  "peers_online": 15,
+  "peers_total": 42,
+  "files_count": 128,
+  "version": "1.3.0"
+}
+```
+
+### Kubernetes Probes
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 5
+```
+
 ## Testing
 
 ```bash
 # Health check
 curl -k https://p2p.idist.dev/health
 
+# Detailed health
+curl -k https://p2p.idist.dev/health/detailed
+
 # Metrics
 curl -k https://p2p.idist.dev/metrics
 
 # API with auth
 curl -k -H "X-API-Key: peer-key-001" https://p2p.idist.dev/api/files
+
+# Register peer
+curl -k -X POST -H "Content-Type: application/json" \
+  -H "X-API-Key: peer-key-001" \
+  -d '{"peer_id":"test-peer","ip":"1.2.3.4","port":6881}' \
+  https://p2p.idist.dev/api/peers/register
+
+# Get JWT token
+curl -k -X POST -H "Content-Type: application/json" \
+  -H "X-API-Key: peer-key-001" \
+  -d '{"peer_id":"test-peer","hostname":"myhost"}' \
+  https://p2p.idist.dev/api/auth/login
+```
+
+## Security Checklist
+
+| Item | Status | Notes |
+|------|--------|-------|
+| API Key Authentication | ✅ | Required for /api/* endpoints |
+| Rate Limiting | ✅ | 100 req/min per IP |
+| HTTPS Only | ✅ | TLS via Ingress |
+| JWT Tokens | ✅ | For advanced auth flows |
+| Input Validation | ✅ | JSON schema validation |
+| SQL Injection Prevention | ✅ | Parameterized queries |
+| CORS Headers | ✅ | Configured in middleware |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         INGRESS (HTTPS)                         │
+│                     p2p.idist.dev:443                           │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      TRACKER SERVICE                            │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐          │
+│  │Prometheus│ │   Rate   │ │   Auth   │ │ Handlers │          │
+│  │Middleware│▶│  Limit   │▶│Middleware│▶│          │          │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘          │
+│                                               │                 │
+│                         ┌─────────────────────┼─────────────┐  │
+│                         ▼                     ▼             │  │
+│                  ┌──────────────┐     ┌──────────────┐      │  │
+│                  │  PostgreSQL  │     │   WSHub      │      │  │
+│                  │   Storage    │     │  (Realtime)  │      │  │
+│                  └──────────────┘     └──────────────┘      │  │
+└─────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      POSTGRESQL POD                             │
+│                    (StatefulSet)                                │
+└─────────────────────────────────────────────────────────────────┘
 ```
 

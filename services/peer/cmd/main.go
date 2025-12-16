@@ -60,17 +60,20 @@ func main() {
 	// Initialize chunker
 	fileChunker := chunker.New(chunker.DefaultChunkSize)
 
-	// Start P2P server
+	// Start P2P server (auto-finds available port if needed)
 	if err := p2pServer.Start(); err != nil {
 		log.Fatalf("Failed to start P2P server: %v", err)
 	}
+
+	// Get the actual port (may differ from requested if port was busy)
+	actualPort := p2pServer.GetPort()
 
 	// Get public IP
 	publicIP := getPublicIP()
 	log.Printf("Public IP: %s", publicIP)
 
-	// Register with tracker
-	resp, err := tracker.Register(publicIP, *port)
+	// Register with tracker using actual port
+	resp, err := tracker.Register(publicIP, actualPort)
 	if err != nil {
 		log.Fatalf("Failed to register with tracker: %v", err)
 	}

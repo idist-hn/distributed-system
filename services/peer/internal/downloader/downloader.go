@@ -106,10 +106,11 @@ func (d *Downloader) DownloadFile(fileInfo *protocol.GetPeersResponse) error {
 		metadata.Name, len(metadata.Chunks), len(fileInfo.Peers))
 
 	// Create chunk task queue with prioritization
-	taskQueue := make(chan *ChunkTask, len(metadata.Chunks))
+	taskQueue := make(chan *ChunkTask, len(metadata.Chunks)*2) // Extra buffer for retries
 	retryQueue := make(chan *ChunkTask, len(metadata.Chunks))
 
 	// Initialize tasks
+	pendingTasks := 0
 	for i, chunk := range metadata.Chunks {
 		if !state.ChunksReceived[i] {
 			taskQueue <- &ChunkTask{
@@ -118,9 +119,9 @@ func (d *Downloader) DownloadFile(fileInfo *protocol.GetPeersResponse) error {
 				Size:       chunk.Size,
 				MaxRetries: d.maxRetries,
 			}
+			pendingTasks++
 		}
 	}
-	close(taskQueue)
 
 	// Determine optimal worker count
 	numWorkers := min(d.maxWorkers, len(fileInfo.Peers), len(metadata.Chunks))
@@ -138,8 +139,8 @@ func (d *Downloader) DownloadFile(fileInfo *protocol.GetPeersResponse) error {
 		go d.parallelWorker(&wg, i, assignedPeers, metadata, state, stats, taskQueue, retryQueue, results)
 	}
 
-	// Start retry processor
-	go d.processRetries(retryQueue, taskQueue, workerDone)
+	// Start retry processor - now with safe channel handling
+	go d.processRetriesSafe(retryQueue, taskQueue, workerDone)
 
 	// Wait for workers and collect results
 	go func() {
@@ -309,8 +310,15 @@ func (d *Downloader) parallelWorker(
 ) {
 	defer wg.Done()
 
+	log.Printf("[Worker %d] Starting with %d peers", workerID, len(peers))
+	if len(peers) == 0 {
+		log.Printf("[Worker %d] No peers assigned, exiting", workerID)
+		return
+	}
+
 	// Sort peers by score (best first)
 	sortedPeers := d.sortPeersByScore(peers, stats)
+	log.Printf("[Worker %d] Sorted peers: %d, first peer: %s:%d", workerID, len(sortedPeers), sortedPeers[0].IP, sortedPeers[0].Port)
 
 	// Track active peer connection
 	var currentConn *p2p.PeerConnection
@@ -338,23 +346,31 @@ func (d *Downloader) parallelWorker(
 				if currentConn != nil {
 					currentConn.Close()
 				}
+				log.Printf("[Worker %d] Connecting to peer %s:%d", workerID, peer.IP, peer.Port)
 				currentConn, err = d.p2pClient.Connect(peer.IP, peer.Port)
 				if err != nil {
+					log.Printf("[Worker %d] Failed to connect: %v", workerID, err)
 					d.updatePeerScore(stats, peer.PeerID, false, 0)
 					continue
 				}
+				log.Printf("[Worker %d] Connected successfully", workerID)
 				currentPeerIdx = peerIdx
 			}
 
 			// Request chunk
+			log.Printf("[Worker %d] Requesting chunk %d from peer %s", workerID, task.Index, peer.PeerID)
 			data, err = currentConn.RequestChunk(metadata.Hash, task.Index, task.Hash)
 			if err == nil {
+				log.Printf("[Worker %d] Received chunk %d, size: %d bytes", workerID, task.Index, len(data))
 				// Verify hash
 				if hash.Verify(data, task.Hash) {
 					downloadedFromPeer = peer.PeerID
 					break
 				}
 				err = fmt.Errorf("hash mismatch")
+				log.Printf("[Worker %d] Hash mismatch for chunk %d", workerID, task.Index)
+			} else {
+				log.Printf("[Worker %d] Failed to get chunk %d: %v", workerID, task.Index, err)
 			}
 
 			// Update peer score on failure
@@ -476,6 +492,36 @@ func (d *Downloader) processRetries(retryQueue <-chan *ChunkTask, taskQueue chan
 			case taskQueue <- task:
 			case <-done:
 				return
+			}
+		case <-done:
+			return
+		}
+	}
+}
+
+// processRetriesSafe handles retry queue with panic recovery
+func (d *Downloader) processRetriesSafe(retryQueue <-chan *ChunkTask, taskQueue chan *ChunkTask, done <-chan struct{}) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[Downloader] Retry processor recovered from panic: %v", r)
+		}
+	}()
+
+	for {
+		select {
+		case task, ok := <-retryQueue:
+			if !ok {
+				return
+			}
+			// Delay before retry
+			time.Sleep(time.Duration(task.Retries) * 500 * time.Millisecond)
+			select {
+			case taskQueue <- task:
+			case <-done:
+				return
+			default:
+				// Channel full or closed, drop the retry
+				log.Printf("[Downloader] Dropping retry for chunk %d", task.Index)
 			}
 		case <-done:
 			return
