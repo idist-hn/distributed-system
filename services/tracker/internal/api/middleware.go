@@ -52,10 +52,20 @@ func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Skip auth for health check, dashboard, metrics, and websocket
+		// Skip auth for health check, dashboard, metrics, websocket, and public read APIs
 		if r.URL.Path == "/health" || r.URL.Path == "/dashboard" || r.URL.Path == "/" || r.URL.Path == "/metrics" || r.URL.Path == "/ws" {
 			next.ServeHTTP(w, r)
 			return
+		}
+
+		// Allow public read access for file listing and peer discovery (for download clients)
+		if r.Method == http.MethodGet {
+			if r.URL.Path == "/api/files" ||
+				strings.HasPrefix(r.URL.Path, "/api/files/") ||
+				r.URL.Path == "/api/files/search" {
+				next.ServeHTTP(w, r)
+				return
+			}
 		}
 
 		// Get API key from header

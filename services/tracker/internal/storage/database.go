@@ -181,7 +181,48 @@ func (s *DatabaseStorage) CleanupOfflinePeers(timeout time.Duration) {
 	s.db.Exec(`UPDATE peers SET is_online = FALSE WHERE last_seen < $1 AND is_online = TRUE`, cutoff)
 }
 
+// DeleteOfflinePeers removes peers that have been offline for more than timeout
+func (s *DatabaseStorage) DeleteOfflinePeers(timeout time.Duration) int {
+	cutoff := time.Now().Add(-timeout)
+
+	// First delete file_peers associations
+	s.db.Exec(`DELETE FROM file_peers WHERE peer_id IN (SELECT id FROM peers WHERE last_seen < $1)`, cutoff)
+
+	// Then delete peers
+	result, err := s.db.Exec(`DELETE FROM peers WHERE last_seen < $1`, cutoff)
+	if err != nil {
+		return 0
+	}
+
+	count, _ := result.RowsAffected()
+	return int(count)
+}
+
 // === File Operations ===
+
+// DeleteOrphanFiles removes files that have no active peers sharing them
+func (s *DatabaseStorage) DeleteOrphanFiles() int {
+	// Delete files that have no file_peers entries with active (online) peers
+	query := `
+		DELETE FROM files
+		WHERE hash NOT IN (
+			SELECT DISTINCT fp.file_hash
+			FROM file_peers fp
+			JOIN peers p ON fp.peer_id = p.id
+			WHERE p.is_online = TRUE
+		)
+	`
+	result, err := s.db.Exec(query)
+	if err != nil {
+		return 0
+	}
+
+	// Also cleanup orphaned file_peers entries
+	s.db.Exec(`DELETE FROM file_peers WHERE file_hash NOT IN (SELECT hash FROM files)`)
+
+	count, _ := result.RowsAffected()
+	return int(count)
+}
 
 // AddFile adds a new file to the registry
 func (s *DatabaseStorage) AddFile(file *models.File) error {

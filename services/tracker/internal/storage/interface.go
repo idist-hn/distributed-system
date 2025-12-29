@@ -22,6 +22,7 @@ type Storage interface {
 	UpdatePeerHeartbeat(peerID string) error
 	RemovePeer(peerID string) error
 	CleanupOfflinePeers(timeout time.Duration)
+	DeleteOfflinePeers(timeout time.Duration) int // Delete peers offline for more than timeout
 
 	// File operations
 	AddFile(file *models.File) error
@@ -30,6 +31,7 @@ type Storage interface {
 	SearchFiles(query string) []protocol.FileListItem
 	ListFilesByCategory(category string) []protocol.FileListItem
 	ListCategories() []CategoryStats
+	DeleteOrphanFiles() int // Delete files with no peers
 
 	// File-Peer operations
 	AddFilePeer(fp *models.FilePeer) error

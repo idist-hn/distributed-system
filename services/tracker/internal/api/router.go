@@ -221,13 +221,25 @@ func (s *Server) StartCleanup(interval, timeout time.Duration) {
 		defer ticker.Stop()
 
 		for range ticker.C {
+			// Mark peers as offline if not seen recently
 			s.storage.CleanupOfflinePeers(timeout)
+
+			// Delete peers that have been offline for more than 5 minutes
+			deleteTimeout := 5 * time.Minute
+			deletedPeers := s.storage.DeleteOfflinePeers(deleteTimeout)
+			if deletedPeers > 0 {
+				log.Printf("[Tracker] Deleted %d peers offline for more than 5 minutes", deletedPeers)
+			}
+
+			// Delete files with no active peers
+			deletedFiles := s.storage.DeleteOrphanFiles()
+			if deletedFiles > 0 {
+				log.Printf("[Tracker] Deleted %d files with no active peers", deletedFiles)
+			}
 
 			// Update metrics gauges
 			peersOnline, _, filesCount := s.storage.GetStats()
 			s.metrics.UpdateGauges(int64(peersOnline), int64(filesCount))
-
-			log.Println("[Tracker] Cleaned up offline peers")
 
 			// Broadcast stats update to WebSocket clients
 			s.broadcastStats()

@@ -40,6 +40,7 @@ type PeerView struct {
 // FileView represents a file for display
 type FileView struct {
 	Hash       string
+	FullHash   string
 	Name       string
 	Size       string
 	Category   string
@@ -93,11 +94,13 @@ func (s *Server) DashboardHandler() http.HandlerFunc {
 		fileViews := make([]FileView, 0, len(allFiles))
 		for _, f := range allFiles {
 			hash := f.Hash
+			fullHash := f.Hash
 			if len(hash) > 12 {
 				hash = hash[:12] + "..."
 			}
 			fileViews = append(fileViews, FileView{
 				Hash:       hash,
+				FullHash:   fullHash,
 				Name:       truncate(f.Name, 40),
 				Size:       formatBytes(f.Size),
 				Category:   "",

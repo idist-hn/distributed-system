@@ -13,6 +13,7 @@ import (
 	"github.com/p2p-filesharing/distributed-system/pkg/hash"
 	"github.com/p2p-filesharing/distributed-system/pkg/protocol"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/p2p"
+	"github.com/p2p-filesharing/distributed-system/services/peer/internal/relay"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/storage"
 )
 
@@ -54,6 +55,7 @@ type ChunkTask struct {
 type Downloader struct {
 	storage      *storage.LocalStorage
 	p2pClient    *p2p.Client
+	relayClient  *relay.Client
 	chunker      *chunker.Chunker
 	maxWorkers   int
 	chunkTimeout time.Duration
@@ -72,6 +74,19 @@ func New(store *storage.LocalStorage, client *p2p.Client) *Downloader {
 	}
 }
 
+// NewWithRelay creates a Downloader with relay support for NAT traversal
+func NewWithRelay(store *storage.LocalStorage, client *p2p.Client, relayClient *relay.Client) *Downloader {
+	return &Downloader{
+		storage:      store,
+		p2pClient:    client,
+		relayClient:  relayClient,
+		chunker:      chunker.New(chunker.DefaultChunkSize),
+		maxWorkers:   8,
+		chunkTimeout: 30 * time.Second,
+		maxRetries:   3,
+	}
+}
+
 // NewWithConfig creates a Downloader with custom configuration
 func NewWithConfig(store *storage.LocalStorage, client *p2p.Client, maxWorkers, maxRetries int, chunkTimeout time.Duration) *Downloader {
 	return &Downloader{
@@ -82,6 +97,11 @@ func NewWithConfig(store *storage.LocalStorage, client *p2p.Client, maxWorkers, 
 		chunkTimeout: chunkTimeout,
 		maxRetries:   maxRetries,
 	}
+}
+
+// SetRelayClient sets the relay client for fallback connections
+func (d *Downloader) SetRelayClient(client *relay.Client) {
+	d.relayClient = client
 }
 
 // DownloadFile downloads a file from available peers using parallel chunk downloads
@@ -105,47 +125,51 @@ func (d *Downloader) DownloadFile(fileInfo *protocol.GetPeersResponse) error {
 	log.Printf("[Downloader] Starting parallel download: %s (%d chunks from %d peers)",
 		metadata.Name, len(metadata.Chunks), len(fileInfo.Peers))
 
-	// Create chunk task queue with prioritization
-	taskQueue := make(chan *ChunkTask, len(metadata.Chunks)*2) // Extra buffer for retries
-	retryQueue := make(chan *ChunkTask, len(metadata.Chunks))
+	// Create chunk task queue
+	taskQueue := make(chan *ChunkTask, len(metadata.Chunks))
 
-	// Initialize tasks
-	pendingTasks := 0
+	// Initialize tasks - collect all tasks first
+	var tasks []*ChunkTask
 	for i, chunk := range metadata.Chunks {
 		if !state.ChunksReceived[i] {
-			taskQueue <- &ChunkTask{
+			tasks = append(tasks, &ChunkTask{
 				Index:      i,
 				Hash:       chunk.Hash,
 				Size:       chunk.Size,
 				MaxRetries: d.maxRetries,
-			}
-			pendingTasks++
+			})
 		}
 	}
 
+	if len(tasks) == 0 {
+		log.Printf("[Downloader] All chunks already downloaded")
+		return nil
+	}
+
 	// Determine optimal worker count
-	numWorkers := min(d.maxWorkers, len(fileInfo.Peers), len(metadata.Chunks))
-	log.Printf("[Downloader] Using %d parallel workers", numWorkers)
+	numWorkers := min(d.maxWorkers, len(fileInfo.Peers), len(tasks))
+	log.Printf("[Downloader] Using %d parallel workers for %d tasks", numWorkers, len(tasks))
 
 	// Create worker pool with peer assignment
 	var wg sync.WaitGroup
-	results := make(chan *chunkResult, len(metadata.Chunks))
-	workerDone := make(chan struct{})
+	results := make(chan *chunkResult, len(tasks))
+
+	// Send tasks to queue and close it
+	for _, task := range tasks {
+		taskQueue <- task
+	}
+	close(taskQueue)
 
 	// Start workers - each gets assigned peers in round-robin
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
 		assignedPeers := d.assignPeers(i, numWorkers, fileInfo.Peers)
-		go d.parallelWorker(&wg, i, assignedPeers, metadata, state, stats, taskQueue, retryQueue, results)
+		go d.simpleWorker(&wg, i, assignedPeers, metadata, state, stats, taskQueue, results)
 	}
-
-	// Start retry processor - now with safe channel handling
-	go d.processRetriesSafe(retryQueue, taskQueue, workerDone)
 
 	// Wait for workers and collect results
 	go func() {
 		wg.Wait()
-		close(workerDone)
 		close(results)
 	}()
 
@@ -156,9 +180,6 @@ func (d *Downloader) DownloadFile(fileInfo *protocol.GetPeersResponse) error {
 			lastErr = result.err
 		}
 	}
-
-	// Close retry queue
-	close(retryQueue)
 
 	// Calculate stats
 	stats.EndTime = time.Now()
@@ -440,6 +461,165 @@ func (d *Downloader) sortPeersByScore(peers []protocol.PeerFileInfo, stats *Down
 	})
 
 	return sorted
+}
+
+// simpleWorker is a simplified worker that processes tasks from the queue
+// It handles retries internally and doesn't rely on a separate retry queue
+func (d *Downloader) simpleWorker(
+	wg *sync.WaitGroup,
+	workerID int,
+	peers []protocol.PeerFileInfo,
+	metadata *protocol.FileMetadata,
+	state *storage.DownloadState,
+	stats *DownloadStats,
+	tasks <-chan *ChunkTask,
+	results chan<- *chunkResult,
+) {
+	defer wg.Done()
+
+	log.Printf("[Worker %d] Starting with %d peers", workerID, len(peers))
+	if len(peers) == 0 {
+		log.Printf("[Worker %d] No peers assigned, exiting", workerID)
+		return
+	}
+
+	// Sort peers by score (best first)
+	sortedPeers := d.sortPeersByScore(peers, stats)
+
+	// Track active peer connection
+	var currentConn *p2p.PeerConnection
+	var currentPeerIdx int
+	useRelayOnly := false // Switch to relay-only mode after direct TCP fails
+	defer func() {
+		if currentConn != nil {
+			currentConn.Close()
+		}
+	}()
+
+	// Try direct TCP connection once at start
+	if d.relayClient != nil && d.relayClient.IsConnected() {
+		// Test direct TCP to first peer
+		testPeer := sortedPeers[0]
+		testConn, err := d.p2pClient.Connect(testPeer.IP, testPeer.Port)
+		if err != nil {
+			log.Printf("[Worker %d] Direct TCP to %s:%d failed: %v, switching to relay-only mode", workerID, testPeer.IP, testPeer.Port, err)
+			useRelayOnly = true
+		} else {
+			log.Printf("[Worker %d] Direct TCP connected to %s:%d", workerID, testPeer.IP, testPeer.Port)
+			currentConn = testConn
+			currentPeerIdx = 0
+		}
+	}
+
+	// Process tasks
+	for task := range tasks {
+		// Skip if already downloaded
+		if state.ChunksReceived[task.Index] {
+			results <- &chunkResult{index: task.Index}
+			continue
+		}
+
+		var data []byte
+		var err error
+		var downloadedFromPeer string
+		startTime := time.Now()
+
+		// Strategy 1: Try direct TCP connection (skip if relay-only mode)
+		if !useRelayOnly {
+			for attempt := 0; attempt < len(sortedPeers); attempt++ {
+				peerIdx := (currentPeerIdx + attempt) % len(sortedPeers)
+				peer := sortedPeers[peerIdx]
+
+				// Connect if needed
+				if currentConn == nil || peerIdx != currentPeerIdx {
+					if currentConn != nil {
+						currentConn.Close()
+					}
+					currentConn, err = d.p2pClient.Connect(peer.IP, peer.Port)
+					if err != nil {
+						log.Printf("[Worker %d] Direct TCP to %s:%d failed: %v", workerID, peer.IP, peer.Port, err)
+						d.updatePeerScore(stats, peer.PeerID, false, 0)
+						continue
+					}
+					currentPeerIdx = peerIdx
+				}
+
+				// Request chunk
+				data, err = currentConn.RequestChunk(metadata.Hash, task.Index, task.Hash)
+				if err == nil {
+					// Verify hash
+					if hash.Verify(data, task.Hash) {
+						downloadedFromPeer = peer.PeerID
+						break
+					}
+					err = fmt.Errorf("hash mismatch")
+				}
+
+				// Update peer score on failure
+				d.updatePeerScore(stats, peer.PeerID, false, 0)
+				currentConn.Close()
+				currentConn = nil
+			}
+
+			// If all direct TCP failed, switch to relay-only mode for remaining chunks
+			if downloadedFromPeer == "" && d.relayClient != nil && d.relayClient.IsConnected() {
+				log.Printf("[Worker %d] All direct TCP failed, switching to relay-only mode", workerID)
+				useRelayOnly = true
+			}
+		}
+
+		// Strategy 2: Use relay connection (always used in relay-only mode)
+		if downloadedFromPeer == "" && d.relayClient != nil && d.relayClient.IsConnected() {
+			for _, peer := range sortedPeers {
+				data, err = d.relayClient.RequestChunk(peer.PeerID, metadata.Hash, task.Index)
+				if err == nil {
+					// Verify hash
+					if hash.Verify(data, task.Hash) {
+						downloadedFromPeer = peer.PeerID
+						if useRelayOnly && task.Index%50 == 0 {
+							log.Printf("[Worker %d] Chunk %d via relay from %s", workerID, task.Index, peer.PeerID[:8])
+						}
+						break
+					}
+					err = fmt.Errorf("hash mismatch via relay")
+				} else {
+					log.Printf("[Worker %d] Relay to %s failed: %v", workerID, peer.PeerID[:min(8, len(peer.PeerID))], err)
+				}
+			}
+		}
+
+		latency := time.Since(startTime)
+
+		if err != nil || data == nil {
+			log.Printf("[Worker %d] Failed to download chunk %d after retries: %v", workerID, task.Index, err)
+			results <- &chunkResult{index: task.Index, err: err}
+			continue
+		}
+
+		// Save chunk
+		chunkPath := filepath.Join(state.TempDir, fmt.Sprintf("chunk_%d", task.Index))
+		if err := os.WriteFile(chunkPath, data, 0644); err != nil {
+			results <- &chunkResult{index: task.Index, err: err}
+			continue
+		}
+
+		// Update stats and state
+		d.storage.MarkChunkReceived(metadata.Hash, task.Index)
+		d.updatePeerScore(stats, downloadedFromPeer, true, latency)
+
+		stats.mu.Lock()
+		stats.DownloadedChunks++
+		stats.BytesDownloaded += int64(len(data))
+		stats.mu.Unlock()
+
+		progress := float64(stats.DownloadedChunks) / float64(stats.TotalChunks) * 100
+		log.Printf("[Worker %d] Chunk %d/%d (%.1f%%) in %v",
+			workerID, task.Index+1, stats.TotalChunks, progress, latency)
+
+		results <- &chunkResult{index: task.Index, size: int64(len(data))}
+	}
+
+	log.Printf("[Worker %d] Finished", workerID)
 }
 
 // updatePeerScore updates peer's score based on performance

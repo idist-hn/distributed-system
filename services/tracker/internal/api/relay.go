@@ -113,14 +113,44 @@ func (h *RelayHub) Run() {
 
 // forwardMessage forwards a relay message to the target peer
 func (h *RelayHub) forwardMessage(msg *RelayMessage) {
+	fromShort := msg.From
+	if len(fromShort) > 8 {
+		fromShort = fromShort[:8]
+	}
+	toShort := msg.To
+	if len(toShort) > 8 {
+		toShort = toShort[:8]
+	}
+
 	h.mu.RLock()
 	targetPeer, ok := h.peers[msg.To]
+	connectedCount := len(h.peers)
 	h.mu.RUnlock()
 
 	if !ok {
 		// Target peer not connected, send error back to sender
+		log.Printf("[Relay] Target peer %s not connected (total peers: %d)", toShort, connectedCount)
 		h.sendError(msg.From, msg.RequestID, 404, "Target peer not connected")
 		return
+	}
+
+	// Parse chunk request for detailed logging
+	if msg.Type == RelayMsgChunkRequest {
+		var req RelayChunkRequest
+		if err := json.Unmarshal(msg.Payload, &req); err == nil {
+			fileHashShort := req.FileHash
+			if len(fileHashShort) > 12 {
+				fileHashShort = fileHashShort[:12]
+			}
+			log.Printf("[Relay] Chunk request: %s -> %s, file=%s, chunk=%d",
+				fromShort, toShort, fileHashShort, req.ChunkIndex)
+		}
+	} else if msg.Type == RelayMsgChunkData {
+		var resp RelayChunkResponse
+		if err := json.Unmarshal(msg.Payload, &resp); err == nil {
+			log.Printf("[Relay] Chunk response: %s -> %s, chunk=%d, size=%d bytes",
+				fromShort, toShort, resp.ChunkIndex, len(resp.Data))
+		}
 	}
 
 	data, err := json.Marshal(msg)
@@ -131,9 +161,11 @@ func (h *RelayHub) forwardMessage(msg *RelayMessage) {
 
 	select {
 	case targetPeer.Send <- data:
-		log.Printf("[Relay] Forwarded message from %s to %s (type: %s)", msg.From, msg.To, msg.Type)
+		if msg.Type != RelayMsgChunkRequest && msg.Type != RelayMsgChunkData {
+			log.Printf("[Relay] Forwarded %s: %s -> %s", msg.Type, fromShort, toShort)
+		}
 	default:
-		log.Printf("[Relay] Failed to forward message to %s: channel full", msg.To)
+		log.Printf("[Relay] Failed to forward to %s: channel full", toShort)
 	}
 }
 

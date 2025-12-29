@@ -62,6 +62,8 @@ type Client struct {
 	mu           sync.RWMutex
 	connected    bool
 	done         chan struct{}
+	closing      bool // true when Close() is called intentionally
+	reconnectCh  chan struct{}
 }
 
 // ChunkHandler is called when a chunk request is received
@@ -70,11 +72,12 @@ type ChunkHandler func(fileHash string, chunkIndex int) ([]byte, string, error)
 // NewClient creates a new relay client
 func NewClient(peerID, trackerURL string) *Client {
 	return &Client{
-		peerID:     peerID,
-		trackerURL: trackerURL,
-		send:       make(chan []byte, 256),
-		responses:  make(map[string]chan *RelayMessage),
-		done:       make(chan struct{}),
+		peerID:      peerID,
+		trackerURL:  trackerURL,
+		send:        make(chan []byte, 256),
+		responses:   make(map[string]chan *RelayMessage),
+		done:        make(chan struct{}),
+		reconnectCh: make(chan struct{}, 1),
 	}
 }
 
@@ -85,6 +88,18 @@ func (c *Client) SetChunkHandler(handler ChunkHandler) {
 
 // Connect establishes WebSocket connection to relay
 func (c *Client) Connect() error {
+	if err := c.doConnect(); err != nil {
+		return err
+	}
+
+	// Start reconnect handler
+	go c.reconnectLoop()
+
+	return nil
+}
+
+// doConnect performs the actual WebSocket connection
+func (c *Client) doConnect() error {
 	u, err := url.Parse(c.trackerURL)
 	if err != nil {
 		return err
@@ -109,8 +124,10 @@ func (c *Client) Connect() error {
 		return fmt.Errorf("relay connect failed: %w", err)
 	}
 
+	c.mu.Lock()
 	c.conn = conn
 	c.connected = true
+	c.mu.Unlock()
 
 	go c.readPump()
 	go c.writePump()
@@ -119,19 +136,87 @@ func (c *Client) Connect() error {
 	return nil
 }
 
-// Close closes the relay connection
+// reconnectLoop handles automatic reconnection when connection drops
+func (c *Client) reconnectLoop() {
+	for {
+		select {
+		case <-c.reconnectCh:
+			c.mu.RLock()
+			closing := c.closing
+			c.mu.RUnlock()
+
+			if closing {
+				return
+			}
+
+			// Exponential backoff reconnect
+			backoff := 5 * time.Second
+			maxBackoff := 60 * time.Second
+
+			for attempt := 1; ; attempt++ {
+				log.Printf("[Relay] Reconnecting (attempt %d)...", attempt)
+
+				if err := c.doConnect(); err != nil {
+					log.Printf("[Relay] Reconnect failed: %v", err)
+					time.Sleep(backoff)
+					backoff = backoff * 2
+					if backoff > maxBackoff {
+						backoff = maxBackoff
+					}
+					continue
+				}
+
+				log.Printf("[Relay] Reconnected successfully")
+				break
+			}
+
+		case <-c.done:
+			return
+		}
+	}
+}
+
+// Close closes the relay connection permanently (no reconnect)
 func (c *Client) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if !c.connected {
-		return
+	c.closing = true
+	c.connected = false
+
+	select {
+	case <-c.done:
+		// already closed
+	default:
+		close(c.done)
 	}
 
-	c.connected = false
-	close(c.done)
 	if c.conn != nil {
 		c.conn.Close()
+	}
+}
+
+// disconnect handles temporary disconnection (triggers reconnect)
+func (c *Client) disconnect() {
+	c.mu.Lock()
+	if !c.connected {
+		c.mu.Unlock()
+		return
+	}
+	c.connected = false
+	if c.conn != nil {
+		c.conn.Close()
+		c.conn = nil
+	}
+	closing := c.closing
+	c.mu.Unlock()
+
+	if !closing {
+		// Trigger reconnect
+		select {
+		case c.reconnectCh <- struct{}{}:
+		default:
+		}
 	}
 }
 
@@ -204,13 +289,23 @@ func (c *Client) RequestChunk(targetPeerID, fileHash string, chunkIndex int) ([]
 
 // readPump reads messages from relay
 func (c *Client) readPump() {
-	defer c.Close()
+	defer c.disconnect()
 
 	for {
-		_, data, err := c.conn.ReadMessage()
+		c.mu.RLock()
+		conn := c.conn
+		c.mu.RUnlock()
+
+		if conn == nil {
+			return
+		}
+
+		_, data, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("[Relay] Read error: %v", err)
+				log.Printf("[Relay] Read error: %v (will reconnect)", err)
+			} else {
+				log.Printf("[Relay] Connection closed (will reconnect)")
 			}
 			return
 		}
@@ -230,7 +325,7 @@ func (c *Client) writePump() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer func() {
 		ticker.Stop()
-		c.Close()
+		c.disconnect()
 	}()
 
 	for {
@@ -239,14 +334,28 @@ func (c *Client) writePump() {
 			if !ok {
 				return
 			}
-			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
+			c.mu.RLock()
+			conn := c.conn
+			c.mu.RUnlock()
+			if conn == nil {
+				return
+			}
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {
+				log.Printf("[Relay] Write error: %v", err)
 				return
 			}
 
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			c.mu.RLock()
+			conn := c.conn
+			c.mu.RUnlock()
+			if conn == nil {
+				return
+			}
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				log.Printf("[Relay] Ping failed: %v", err)
 				return
 			}
 
@@ -282,23 +391,40 @@ func (c *Client) handleMessage(msg *RelayMessage) {
 
 // handleChunkRequest handles incoming chunk requests from other peers
 func (c *Client) handleChunkRequest(msg *RelayMessage) {
+	fromPeer := msg.From
+	if len(fromPeer) > 8 {
+		fromPeer = fromPeer[:8]
+	}
+	log.Printf("[Relay] Chunk request from peer %s", fromPeer)
+
 	if c.chunkHandler == nil {
+		log.Printf("[Relay] No chunk handler registered")
 		c.sendError(msg.From, msg.RequestID, 500, "No chunk handler")
 		return
 	}
 
 	var req ChunkRequest
 	if err := json.Unmarshal(msg.Payload, &req); err != nil {
+		log.Printf("[Relay] Invalid chunk request: %v", err)
 		c.sendError(msg.From, msg.RequestID, 400, "Invalid request")
 		return
 	}
 
+	fileHashShort := req.FileHash
+	if len(fileHashShort) > 12 {
+		fileHashShort = fileHashShort[:12]
+	}
+	log.Printf("[Relay] Request: file=%s chunk=%d from=%s", fileHashShort, req.ChunkIndex, fromPeer)
+
 	// Get chunk data
 	data, hash, err := c.chunkHandler(req.FileHash, req.ChunkIndex)
 	if err != nil {
+		log.Printf("[Relay] Failed to get chunk: %v", err)
 		c.sendError(msg.From, msg.RequestID, 404, err.Error())
 		return
 	}
+
+	log.Printf("[Relay] Sending chunk %d (%d bytes) to peer %s", req.ChunkIndex, len(data), fromPeer)
 
 	// Send chunk response
 	payload, _ := json.Marshal(ChunkResponse{

@@ -20,8 +20,13 @@ type Client struct {
 func NewClient(peerID string) *Client {
 	return &Client{
 		peerID:  peerID,
-		timeout: 30 * time.Second,
+		timeout: 5 * time.Second, // Quick timeout for direct TCP check
 	}
+}
+
+// SetTimeout sets the connection timeout
+func (c *Client) SetTimeout(timeout time.Duration) {
+	c.timeout = timeout
 }
 
 // PeerConnection represents a connection to a peer

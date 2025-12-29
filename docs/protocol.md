@@ -171,7 +171,64 @@
 }
 ```
 
-## 3. Error Codes
+## 3. WebSocket Relay Protocol
+
+### 3.1 Connect to Relay
+
+**Endpoint**: `wss://tracker/relay?peer_id=XXX`
+
+Peer connects to relay hub for NAT traversal support.
+
+### 3.2 Relay Message Types
+
+```go
+const (
+    RelayMsgChunkRequest  = "chunk_request"
+    RelayMsgChunkResponse = "chunk_response"
+    RelayMsgError         = "error"
+)
+```
+
+### 3.3 Chunk Request (via Relay)
+
+```json
+{
+  "type": "chunk_request",
+  "to": "target-peer-id",
+  "payload": {
+    "file_hash": "abc123...",
+    "chunk_index": 5
+  }
+}
+```
+
+### 3.4 Chunk Response (via Relay)
+
+```json
+{
+  "type": "chunk_response",
+  "to": "requester-peer-id",
+  "payload": {
+    "file_hash": "abc123...",
+    "chunk_index": 5,
+    "data": "<base64-encoded-chunk-data>"
+  }
+}
+```
+
+### 3.5 Error Response
+
+```json
+{
+  "type": "error",
+  "to": "requester-peer-id",
+  "payload": {
+    "error": "chunk not found"
+  }
+}
+```
+
+## 4. Error Codes
 
 | Code | Message | Description |
 |------|---------|-------------|
@@ -180,4 +237,5 @@
 | 1003 | CHUNK_NOT_AVAILABLE | Peer không có chunk này |
 | 1004 | HASH_MISMATCH | Hash không khớp |
 | 1005 | CONNECTION_REFUSED | Từ chối kết nối |
+| 1006 | RELAY_TIMEOUT | Relay request timeout |
 

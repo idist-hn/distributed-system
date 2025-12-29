@@ -5,9 +5,17 @@ Hệ thống chia sẻ file ngang hàng (Peer-to-Peer) được xây dựng bằ
 ## 🌟 Highlights
 
 - **Hybrid P2P Architecture**: Tracker điều phối, peers trao đổi file trực tiếp
-- **Multi-Connection Strategy**: Direct TCP → UDP Hole Punch → WebSocket Relay
-- **Advanced Features**: Parallel downloads, E2E encryption, DHT, Merkle verification
-- **Production Ready**: Kubernetes deployment, Web dashboard, API authentication
+- **Smart Connection Strategy**: Direct TCP (5s timeout) → WebSocket Relay (auto-fallback)
+- **NAT Traversal**: WebSocket Relay cho peers behind NAT/firewall
+- **Parallel Downloads**: Multi-worker chunk downloads với peer scoring
+- **Production Ready**: PostgreSQL storage, Kubernetes deployment, Web dashboard
+- **Real-time Monitoring**: WebSocket events, Prometheus metrics, live dashboard
+
+## 🔗 Live Demo
+
+- **Tracker**: https://p2p.idist.dev
+- **Dashboard**: https://p2p.idist.dev/dashboard
+- **API Docs**: https://p2p.idist.dev/health
 
 ## 📐 Kiến Trúc
 
@@ -23,7 +31,7 @@ Hệ thống chia sẻ file ngang hàng (Peer-to-Peer) được xây dựng bằ
 │                           ▼                                         │
 │  ┌────────────────────────────────────────────────────────────┐    │
 │  │                    PostgreSQL Storage                       │    │
-│  │  • Peer Registry  • File Metadata  • Relay Connections     │    │
+│  │  • Peer Registry  • File Metadata  • Chunk Hashes          │    │
 │  └────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
                     │                    │
@@ -31,14 +39,14 @@ Hệ thống chia sẻ file ngang hàng (Peer-to-Peer) được xây dựng bằ
           ▼                   ▼ ▼                  ▼
    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
    │   PEER A     │◄──►│   PEER B     │◄──►│   PEER C     │
-   │              │    │              │    │              │
+   │  (Seeder)    │    │  (Leecher)   │    │  (Seeder)    │
    │ ┌──────────┐ │    │ ┌──────────┐ │    │ ┌──────────┐ │
-   │ │P2P Server│ │    │ │P2P Server│ │    │ │P2P Server│ │
-   │ │TCP:6881  │ │    │ │TCP:6882  │ │    │ │TCP:6883  │ │
+   │ │P2P Server│ │    │ │Downloader│ │    │ │P2P Server│ │
+   │ │TCP:6881  │ │    │ │ Parallel │ │    │ │TCP:6882  │ │
    │ └──────────┘ │    │ └──────────┘ │    │ └──────────┘ │
    │ ┌──────────┐ │    │ ┌──────────┐ │    │ ┌──────────┐ │
-   │ │ Storage  │ │    │ │ Storage  │ │    │ │ Storage  │ │
-   │ │ ./data/  │ │    │ │ ./data/  │ │    │ │ ./data/  │ │
+   │ │  Relay   │ │    │ │  Relay   │ │    │ │  Relay   │ │
+   │ │  Client  │ │    │ │  Client  │ │    │ │  Client  │ │
    │ └──────────┘ │    │ └──────────┘ │    │ └──────────┘ │
    └──────────────┘    └──────────────┘    └──────────────┘
 ```
@@ -177,34 +185,40 @@ distributed-system/
 
 ### Core Features
 - [x] Tracker Server with REST API
-- [x] Peer registration & heartbeat
+- [x] Peer registration & heartbeat (30s interval)
 - [x] File chunking (256KB chunks)
 - [x] SHA-256 integrity verification
 - [x] Auto-scan & share files in daemon mode
+- [x] PostgreSQL persistent storage
 
-### Connection Strategy
-- [x] Direct TCP connection
-- [x] UDP NAT Hole Punching
-- [x] WebSocket Relay (fallback)
-- [x] Connection Manager (auto-fallback)
+### Smart Connection Strategy
+- [x] Direct TCP connection (5s timeout)
+- [x] WebSocket Relay fallback (auto-switch)
+- [x] Relay-only mode for NAT/firewall peers
+- [x] Connection pooling & reuse
 
-### Advanced Features
-- [x] Parallel chunk downloads
-- [x] Resume/Pause downloads
-- [x] End-to-End encryption (X25519 + AES-256-GCM)
-- [x] Kademlia DHT for peer discovery
-- [x] Web UI Dashboard
-- [x] Bandwidth throttling
-- [x] Merkle tree verification
+### Download Features
+- [x] Parallel chunk downloads (multi-worker)
+- [x] Peer scoring & selection
+- [x] Resume interrupted downloads
+- [x] Progress tracking & statistics
+
+### Monitoring & Security
+- [x] Web UI Dashboard (real-time)
+- [x] WebSocket live events
+- [x] Prometheus metrics
+- [x] API key authentication
+- [x] Rate limiting
 
 ## 📊 Web Dashboard
 
-Access the dashboard at `https://your-tracker/dashboard`:
+Access the dashboard at `https://p2p.idist.dev/dashboard`:
 
 - **Real-time Stats**: Peers online, files shared, relay connections
-- **Peer List**: All connected peers with status
-- **File List**: All shared files with metadata
-- **Auto-refresh**: Updates every 30 seconds
+- **Peer List**: All connected peers with status, IP, port
+- **File List**: All shared files with size, seeders count
+- **WebSocket Events**: Live updates via `/ws` endpoint
+- **Auto-refresh**: Updates every 5 seconds
 
 ## 🧪 Testing
 
@@ -225,27 +239,42 @@ go test -v ./pkg/holepunch/...
 
 - [Architecture](docs/architecture.md) - System design
 - [Protocol](docs/protocol.md) - P2P protocol specification
+- [Deployment](docs/deployment.md) - Deployment guide
 - [Features](docs/features/) - Detailed feature docs
+  - [Relay Connection](docs/features/relay-connection.md)
   - [Parallel Downloads](docs/features/parallel-chunk-downloads.md)
-  - [Resume/Pause](docs/features/resume-pause-downloads.md)
-  - [E2E Encryption](docs/features/end-to-end-encryption.md)
-  - [DHT Kademlia](docs/features/dht-kademlia.md)
-  - [NAT Hole Punching](docs/features/nat-hole-punching.md)
   - [Web Dashboard](docs/features/web-ui-dashboard.md)
-  - [Bandwidth Throttling](docs/features/bandwidth-throttling.md)
-  - [Merkle Verification](docs/features/merkle-tree-verification.md)
 
 ## 🛠️ Configuration
 
-### Environment Variables
+### Tracker Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TRACKER_ADDR` | `:8080` | Tracker listen address |
+| `POSTGRES_URL` | - | PostgreSQL connection string |
 | `API_KEYS` | - | Comma-separated API keys |
-| `PEER_PORT` | `6881` | Peer P2P port |
-| `DATA_DIR` | `./data` | Data storage directory |
-| `BANDWIDTH_LIMIT` | `0` | Bandwidth limit (0=unlimited) |
+| `JWT_SECRET` | - | JWT signing secret |
+| `RATE_LIMIT_RPS` | `100` | Requests per second limit |
+
+### Peer CLI Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-tracker` | `http://localhost:8080` | Tracker URL |
+| `-port` | `6881` | P2P listen port |
+| `-data` | `./data` | Data directory |
+| `-api-key` | - | API key for tracker |
+| `-daemon` | `false` | Run in daemon mode |
+
+## 🚀 Quick Download
+
+```bash
+# Download a file by hash
+p2p-download <file-hash>
+
+# Example
+p2p-download 1bbbdb80ca3c67027bb53a3b8550fe8290c2edbc19632c93e44f8b182dd147ae
+```
 
 ## 📄 License
 

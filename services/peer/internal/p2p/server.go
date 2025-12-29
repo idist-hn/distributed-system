@@ -89,6 +89,9 @@ func (s *Server) acceptConnections() {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
+	remoteAddr := conn.RemoteAddr().String()
+	log.Printf("[P2P Server] New connection from %s", remoteAddr)
+
 	decoder := json.NewDecoder(conn)
 	encoder := json.NewEncoder(conn)
 
@@ -154,9 +157,12 @@ func (s *Server) handleHandshake(encoder *json.Encoder) {
 
 // handleChunkRequest handles a request for a file chunk
 func (s *Server) handleChunkRequest(encoder *json.Encoder, req *protocol.RequestChunkMessage) {
+	log.Printf("[P2P Server] Chunk request: file=%s chunk=%d", req.FileHash[:min(12, len(req.FileHash))], req.ChunkIndex)
+
 	// Find the file
 	sharedFile, exists := s.storage.GetSharedFile(req.FileHash)
 	if !exists {
+		log.Printf("[P2P Server] File not found: %s", req.FileHash[:min(12, len(req.FileHash))])
 		s.sendError(encoder, protocol.ErrFileNotFound, "File not found")
 		return
 	}
@@ -164,6 +170,7 @@ func (s *Server) handleChunkRequest(encoder *json.Encoder, req *protocol.Request
 	// Read the chunk
 	chunkData, err := s.chunker.ReadChunk(sharedFile.FilePath, req.ChunkIndex)
 	if err != nil {
+		log.Printf("[P2P Server] Failed to read chunk %d: %v", req.ChunkIndex, err)
 		s.sendError(encoder, protocol.ErrChunkNotAvailable, "Could not read chunk")
 		return
 	}
@@ -182,6 +189,8 @@ func (s *Server) handleChunkRequest(encoder *json.Encoder, req *protocol.Request
 		ChunkHash:  chunkHash,
 		Data:       chunkData,
 	}
+	log.Printf("[P2P Server] Sending chunk %d (%d bytes) for file %s",
+		req.ChunkIndex, len(chunkData), sharedFile.Metadata.Name)
 	encoder.Encode(resp)
 }
 

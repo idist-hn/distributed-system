@@ -94,7 +94,66 @@ func (s *MemoryStorage) CleanupOfflinePeers(timeout time.Duration) {
 	}
 }
 
+// DeleteOfflinePeers removes peers that have been offline for more than timeout
+func (s *MemoryStorage) DeleteOfflinePeers(timeout time.Duration) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	var toDelete []string
+	for id, peer := range s.peers {
+		if now.Sub(peer.LastSeen) > timeout {
+			toDelete = append(toDelete, id)
+		}
+	}
+
+	for _, id := range toDelete {
+		delete(s.peers, id)
+		// Also remove from file-peer relationships
+		for fileHash, fps := range s.filePeers {
+			var remaining []models.FilePeer
+			for _, fp := range fps {
+				if fp.PeerID != id {
+					remaining = append(remaining, fp)
+				}
+			}
+			s.filePeers[fileHash] = remaining
+		}
+	}
+
+	return len(toDelete)
+}
+
 // === File Operations ===
+
+// DeleteOrphanFiles removes files that have no peers sharing them
+func (s *MemoryStorage) DeleteOrphanFiles() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var toDelete []string
+	for fileHash := range s.files {
+		// Check if any peer has this file
+		fps := s.filePeers[fileHash]
+		hasActivePeer := false
+		for _, fp := range fps {
+			if peer, exists := s.peers[fp.PeerID]; exists && peer.IsOnline {
+				hasActivePeer = true
+				break
+			}
+		}
+		if !hasActivePeer {
+			toDelete = append(toDelete, fileHash)
+		}
+	}
+
+	for _, hash := range toDelete {
+		delete(s.files, hash)
+		delete(s.filePeers, hash)
+	}
+
+	return len(toDelete)
+}
 
 // AddFile adds a new file to the registry
 func (s *MemoryStorage) AddFile(file *models.File) error {

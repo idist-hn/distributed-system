@@ -19,6 +19,7 @@ import (
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/client"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/downloader"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/p2p"
+	"github.com/p2p-filesharing/distributed-system/services/peer/internal/relay"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/storage"
 )
 
@@ -79,11 +80,38 @@ func main() {
 	}
 	log.Printf("Registered with tracker: %s", resp.Message)
 
+	// Initialize relay client for NAT traversal
+	relayClient := relay.NewClient(peerID, *trackerURL)
+
+	// Set chunk handler for relay requests
+	relayClient.SetChunkHandler(func(fileHash string, chunkIndex int) ([]byte, string, error) {
+		sharedFile, exists := store.GetSharedFile(fileHash)
+		if !exists {
+			return nil, "", fmt.Errorf("file not found: %s", fileHash)
+		}
+		chunkData, err := fileChunker.ReadChunk(sharedFile.FilePath, chunkIndex)
+		if err != nil {
+			return nil, "", err
+		}
+		chunkHash := ""
+		if chunkIndex < len(sharedFile.Metadata.Chunks) {
+			chunkHash = sharedFile.Metadata.Chunks[chunkIndex].Hash
+		}
+		return chunkData, chunkHash, nil
+	})
+
+	// Connect to relay
+	if err := relayClient.Connect(); err != nil {
+		log.Printf("Warning: Relay connection failed: %v (direct TCP only)", err)
+	} else {
+		log.Printf("[Relay] Connected for NAT traversal support")
+	}
+
 	// Start heartbeat goroutine
 	go startHeartbeat(tracker, store)
 
 	// Handle graceful shutdown
-	go handleShutdown(tracker, p2pServer)
+	go handleShutdown(tracker, p2pServer, relayClient)
 
 	// Run in daemon mode or CLI mode
 	if *daemon {
@@ -176,7 +204,7 @@ func startFileScan(sharedDir string, tracker *client.TrackerClient, store *stora
 	}
 }
 
-func handleShutdown(tracker *client.TrackerClient, server *p2p.Server) {
+func handleShutdown(tracker *client.TrackerClient, server *p2p.Server, relayClient *relay.Client) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
@@ -184,6 +212,9 @@ func handleShutdown(tracker *client.TrackerClient, server *p2p.Server) {
 	log.Println("Shutting down...")
 	tracker.Leave()
 	server.Stop()
+	if relayClient != nil {
+		relayClient.Close()
+	}
 	os.Exit(0)
 }
 

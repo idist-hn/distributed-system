@@ -12,16 +12,18 @@ GOFMT=gofmt
 # Binary names
 TRACKER_BINARY=tracker
 PEER_BINARY=peer
+DOWNLOAD_BINARY=p2p-download
 
 # Directories
 BIN_DIR=bin
 TRACKER_DIR=services/tracker
 PEER_DIR=services/peer
+DOWNLOAD_DIR=services/peer/cmd/download
 
 all: build
 
 ## build: Build all binaries
-build: build-tracker build-peer
+build: build-tracker build-peer build-download
 
 ## build-tracker: Build tracker server
 build-tracker:
@@ -34,6 +36,12 @@ build-peer:
 	@echo "Building peer..."
 	@mkdir -p $(BIN_DIR)
 	$(GOBUILD) -o $(BIN_DIR)/$(PEER_BINARY) ./$(PEER_DIR)/cmd
+
+## build-download: Build download CLI tool
+build-download:
+	@echo "Building p2p-download..."
+	@mkdir -p $(BIN_DIR)
+	$(GOBUILD) -o $(BIN_DIR)/$(DOWNLOAD_BINARY) ./$(DOWNLOAD_DIR)
 
 ## run-tracker: Run tracker server
 run-tracker:
@@ -109,6 +117,23 @@ build-peer-linux:
 build-peer-all: build-peer-macos build-peer-windows build-peer-linux
 	@echo "All peer binaries built!"
 	@ls -lh $(BIN_DIR)/peer-*
+
+## build-download-linux: Build p2p-download for Linux AMD64
+build-download-linux:
+	@echo "Building p2p-download for Linux AMD64..."
+	@mkdir -p $(BIN_DIR)
+	GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BIN_DIR)/p2p-download-linux-amd64 ./$(DOWNLOAD_DIR)
+
+## build-download-macos: Build p2p-download for macOS ARM64
+build-download-macos:
+	@echo "Building p2p-download for macOS ARM64..."
+	@mkdir -p $(BIN_DIR)
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) -o $(BIN_DIR)/p2p-download-darwin-arm64 ./$(DOWNLOAD_DIR)
+
+## build-download-all: Build p2p-download for all platforms
+build-download-all: build-download-linux build-download-macos
+	@echo "All p2p-download binaries built!"
+	@ls -lh $(BIN_DIR)/p2p-download-*
 
 ## docker-build: Build Docker images
 docker-build:

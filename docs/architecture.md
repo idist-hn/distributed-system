@@ -2,7 +2,13 @@
 
 ## 1. Tổng Quan
 
-Hệ thống chia sẻ file ngang hàng (P2P) cho phép các peer trao đổi file trực tiếp với nhau mà không cần server trung gian lưu trữ file. Sử dụng mô hình **Hybrid P2P** với Tracker đóng vai trò điều phối.
+Hệ thống chia sẻ file ngang hàng (P2P) cho phép các peer trao đổi file trực tiếp với nhau. Sử dụng mô hình **Hybrid P2P** với Tracker đóng vai trò điều phối và relay cho NAT traversal.
+
+**Tính năng chính:**
+- Smart connection strategy: Direct TCP (5s) → WebSocket Relay
+- PostgreSQL persistent storage
+- Parallel chunk downloads với peer scoring
+- Real-time monitoring qua WebSocket
 
 ## 2. Kiến Trúc Tổng Thể
 
@@ -12,20 +18,21 @@ Hệ thống chia sẻ file ngang hàng (P2P) cho phép các peer trao đổi fi
 │  ┌────────────────────────────────────────────────────────────────────┐ │
 │  │                         HTTP Server (:8080)                         │ │
 │  ├──────────────┬──────────────┬──────────────┬───────────────────────┤ │
-│  │  REST API    │  WebSocket   │  Dashboard   │  Hole Punch           │ │
-│  │  /api/*      │  /ws, /relay │  /dashboard  │  Coordinator (UDP)    │ │
+│  │  REST API    │  WebSocket   │  Dashboard   │  Relay Hub            │ │
+│  │  /api/*      │  /ws         │  /dashboard  │  /relay               │ │
 │  └──────────────┴──────────────┴──────────────┴───────────────────────┘ │
 │                                    │                                     │
 │  ┌────────────────────────────────▼────────────────────────────────────┐│
-│  │                       In-Memory Storage                              ││
+│  │                       PostgreSQL Storage                             ││
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  ││
-│  │  │ Peer Store  │  │ File Store  │  │ Relay Hub   │                  ││
-│  │  │ - ID, Addr  │  │ - Hash      │  │ - Peer Conn │                  ││
-│  │  │ - Status    │  │ - Chunks    │  │ - Messages  │                  ││
-│  │  │ - Files     │  │ - Seeders   │  │ - Buffering │                  ││
+│  │  │ peers       │  │ files       │  │ chunks      │                  ││
+│  │  │ - id, addr  │  │ - hash      │  │ - file_hash │                  ││
+│  │  │ - status    │  │ - name,size │  │ - index     │                  ││
+│  │  │ - last_seen │  │ - seeders   │  │ - hash      │                  ││
 │  │  └─────────────┘  └─────────────┘  └─────────────┘                  ││
 │  └─────────────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────────┘
+```
                               │
         ┌─────────────────────┼─────────────────────┐
         │                     │                     │
@@ -94,28 +101,35 @@ Hệ thống chia sẻ file ngang hàng (P2P) cho phép các peer trao đổi fi
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    Connection Manager                        │
+│                    Smart Connection Strategy                  │
 ├──────────────────────────────────────────────────────────────┤
-│  Priority 1: Direct TCP Connection                           │
+│  Step 1: Try Direct TCP (5 second timeout)                   │
 │  ┌──────────┐         ┌──────────┐                           │
 │  │  Peer A  │ ──TCP──▶│  Peer B  │   ✓ Fastest               │
 │  └──────────┘         └──────────┘   ✓ No overhead           │
+│                                                               │
+│  If success → Use direct TCP for all chunks                  │
+│  If timeout → Switch to relay-only mode                      │
 ├──────────────────────────────────────────────────────────────┤
-│  Priority 2: UDP Hole Punching (if Direct fails)             │
-│  ┌──────────┐   UDP   ┌──────────┐   UDP   ┌──────────┐      │
-│  │  Peer A  │◄───────▶│ Tracker  │◄───────▶│  Peer B  │      │
-│  └──────────┘         └──────────┘         └──────────┘      │
-│       │                Coordinate                │           │
-│       └──────────── Direct UDP ──────────────────┘           │
-├──────────────────────────────────────────────────────────────┤
-│  Priority 3: WebSocket Relay (if Hole Punch fails)           │
+│  Step 2: WebSocket Relay (if Direct fails)                   │
 │  ┌──────────┐   WS    ┌──────────┐    WS   ┌──────────┐      │
 │  │  Peer A  │────────▶│ Tracker  │◀────────│  Peer B  │      │
 │  └──────────┘         │ (Relay)  │         └──────────┘      │
 │                       └──────────┘                           │
-│                       Data forwarded                         │
+│                                                               │
+│  ✓ Works behind NAT/firewall                                 │
+│  ✓ Auto-fallback, no manual config                           │
+│  ✓ ~100-300ms latency per chunk                              │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+### Connection Flow
+
+1. **Download starts** → Worker tests direct TCP to first peer (5s timeout)
+2. **If direct works** → Continue using TCP for all chunks
+3. **If direct fails** → Switch to relay-only mode immediately
+4. **Relay mode** → All chunks go through WebSocket relay
+5. **No retry** → Once in relay mode, stay in relay mode
 
 ## 5. Luồng Hoạt Động
 
