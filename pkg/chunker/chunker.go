@@ -1,10 +1,12 @@
 package chunker
 
 import (
+	"encoding/hex"
 	"io"
 	"os"
 
 	"github.com/p2p-filesharing/distributed-system/pkg/hash"
+	"github.com/p2p-filesharing/distributed-system/pkg/merkle"
 	"github.com/p2p-filesharing/distributed-system/pkg/protocol"
 )
 
@@ -53,6 +55,7 @@ func (c *Chunker) ChunkFile(filepath string) (*protocol.FileMetadata, error) {
 
 	// Read and hash each chunk
 	var chunks []protocol.ChunkInfo
+	var chunkHashes [][]byte
 	buf := make([]byte, c.ChunkSize)
 	index := 0
 
@@ -71,6 +74,10 @@ func (c *Chunker) ChunkFile(filepath string) (*protocol.FileMetadata, error) {
 		chunkData := buf[:n]
 		chunkHash := hash.Calculate(chunkData)
 
+		// Store hash bytes for merkle tree
+		hashBytes, _ := hex.DecodeString(chunkHash)
+		chunkHashes = append(chunkHashes, hashBytes)
+
 		chunks = append(chunks, protocol.ChunkInfo{
 			Index: index,
 			Hash:  chunkHash,
@@ -79,12 +86,22 @@ func (c *Chunker) ChunkFile(filepath string) (*protocol.FileMetadata, error) {
 		index++
 	}
 
+	// Build Merkle tree and get root
+	var merkleRoot string
+	if len(chunkHashes) > 0 {
+		tree, err := merkle.NewTreeFromHashes(chunkHashes)
+		if err == nil {
+			merkleRoot = tree.RootHex()
+		}
+	}
+
 	return &protocol.FileMetadata{
-		Name:      stat.Name(),
-		Size:      stat.Size(),
-		Hash:      fileHash,
-		ChunkSize: c.ChunkSize,
-		Chunks:    chunks,
+		Name:       stat.Name(),
+		Size:       stat.Size(),
+		Hash:       fileHash,
+		ChunkSize:  c.ChunkSize,
+		Chunks:     chunks,
+		MerkleRoot: merkleRoot,
 	}, nil
 }
 

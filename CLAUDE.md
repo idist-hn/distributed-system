@@ -80,13 +80,13 @@ go test -v ./pkg/chunker/...
 
 ## Important Files
 
-| File | Purpose |
-|------|---------|
-| `services/tracker/internal/api/router.go` | Main tracker server |
-| `services/tracker/internal/api/relay.go` | WebSocket relay hub |
-| `services/peer/internal/downloader/downloader.go` | Parallel download logic |
-| `services/peer/internal/relay/client.go` | Relay client |
-| `pkg/protocol/messages.go` | Protocol message definitions |
+| File                                              | Purpose                      |
+| ------------------------------------------------- | ---------------------------- |
+| `services/tracker/internal/api/router.go`         | Main tracker server          |
+| `services/tracker/internal/api/relay.go`          | WebSocket relay hub          |
+| `services/peer/internal/downloader/downloader.go` | Parallel download logic      |
+| `services/peer/internal/relay/client.go`          | Relay client                 |
+| `pkg/protocol/messages.go`                        | Protocol message definitions |
 
 ## Environment Variables
 

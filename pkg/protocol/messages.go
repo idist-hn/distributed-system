@@ -39,11 +39,12 @@ type ChunkInfo struct {
 
 // FileMetadata represents metadata about a shared file
 type FileMetadata struct {
-	Name      string      `json:"name"`
-	Size      int64       `json:"size"`
-	Hash      string      `json:"hash"`
-	ChunkSize int64       `json:"chunk_size"`
-	Chunks    []ChunkInfo `json:"chunks"`
+	Name       string      `json:"name"`
+	Size       int64       `json:"size"`
+	Hash       string      `json:"hash"`
+	ChunkSize  int64       `json:"chunk_size"`
+	Chunks     []ChunkInfo `json:"chunks"`
+	MerkleRoot string      `json:"merkle_root,omitempty"`
 }
 
 // === Tracker API Messages ===

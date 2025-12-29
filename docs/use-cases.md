@@ -8,26 +8,26 @@ Tài liệu này mô tả chi tiết các Use Cases của hệ thống P2P File 
 
 ## Actors
 
-| Actor | Mô tả |
-|-------|-------|
-| **Peer** | Node trong mạng P2P, có thể upload/download files |
-| **Seeder** | Peer có đầy đủ file và chỉ upload |
-| **Leecher** | Peer đang download file |
-| **Tracker** | Server điều phối, quản lý peers và files |
-| **Admin** | Người quản trị hệ thống |
-| **Dashboard User** | Người xem dashboard monitoring |
+| Actor              | Mô tả                                             |
+| ------------------ | ------------------------------------------------- |
+| **Peer**           | Node trong mạng P2P, có thể upload/download files |
+| **Seeder**         | Peer có đầy đủ file và chỉ upload                 |
+| **Leecher**        | Peer đang download file                           |
+| **Tracker**        | Server điều phối, quản lý peers và files          |
+| **Admin**          | Người quản trị hệ thống                           |
+| **Dashboard User** | Người xem dashboard monitoring                    |
 
 ---
 
 ## UC-01: Đăng Ký Peer
 
 ### Thông tin cơ bản
-| Thuộc tính | Giá trị |
-|------------|---------|
-| **Use Case ID** | UC-01 |
-| **Tên** | Đăng Ký Peer |
-| **Actor** | Peer |
-| **Mô tả** | Peer đăng ký với Tracker để tham gia mạng P2P |
+| Thuộc tính      | Giá trị                                       |
+| --------------- | --------------------------------------------- |
+| **Use Case ID** | UC-01                                         |
+| **Tên**         | Đăng Ký Peer                                  |
+| **Actor**       | Peer                                          |
+| **Mô tả**       | Peer đăng ký với Tracker để tham gia mạng P2P |
 
 ### Preconditions
 - Tracker server đang hoạt động
@@ -57,12 +57,12 @@ Tài liệu này mô tả chi tiết các Use Cases của hệ thống P2P File 
 ## UC-02: Chia Sẻ File (Announce)
 
 ### Thông tin cơ bản
-| Thuộc tính | Giá trị |
-|------------|---------|
-| **Use Case ID** | UC-02 |
-| **Tên** | Chia Sẻ File |
-| **Actor** | Peer (Seeder) |
-| **Mô tả** | Peer thông báo có file để chia sẻ |
+| Thuộc tính      | Giá trị                           |
+| --------------- | --------------------------------- |
+| **Use Case ID** | UC-02                             |
+| **Tên**         | Chia Sẻ File                      |
+| **Actor**       | Peer (Seeder)                     |
+| **Mô tả**       | Peer thông báo có file để chia sẻ |
 
 ### Preconditions
 - Peer đã đăng ký với Tracker
@@ -90,12 +90,12 @@ Tài liệu này mô tả chi tiết các Use Cases của hệ thống P2P File 
 ## UC-03: Tìm Kiếm File
 
 ### Thông tin cơ bản
-| Thuộc tính | Giá trị |
-|------------|---------|
-| **Use Case ID** | UC-03 |
-| **Tên** | Tìm Kiếm File |
-| **Actor** | Peer (Leecher) |
-| **Mô tả** | Peer tìm kiếm file muốn download |
+| Thuộc tính      | Giá trị                          |
+| --------------- | -------------------------------- |
+| **Use Case ID** | UC-03                            |
+| **Tên**         | Tìm Kiếm File                    |
+| **Actor**       | Peer (Leecher)                   |
+| **Mô tả**       | Peer tìm kiếm file muốn download |
 
 ### Preconditions
 - Peer đã đăng ký với Tracker
@@ -118,12 +118,12 @@ Tài liệu này mô tả chi tiết các Use Cases của hệ thống P2P File 
 ## UC-04: Download File
 
 ### Thông tin cơ bản
-| Thuộc tính | Giá trị |
-|------------|---------|
-| **Use Case ID** | UC-04 |
-| **Tên** | Download File |
-| **Actor** | Peer (Leecher) |
-| **Mô tả** | Peer download file từ các seeders |
+| Thuộc tính      | Giá trị                           |
+| --------------- | --------------------------------- |
+| **Use Case ID** | UC-04                             |
+| **Tên**         | Download File                     |
+| **Actor**       | Peer (Leecher)                    |
+| **Mô tả**       | Peer download file từ các seeders |
 
 ### Preconditions
 - Peer biết file hash
@@ -155,12 +155,12 @@ Tài liệu này mô tả chi tiết các Use Cases của hệ thống P2P File 
 ## UC-05: Heartbeat
 
 ### Thông tin cơ bản
-| Thuộc tính | Giá trị |
-|------------|---------|
-| **Use Case ID** | UC-05 |
-| **Tên** | Heartbeat |
-| **Actor** | Peer |
-| **Mô tả** | Peer gửi heartbeat để duy trì trạng thái online |
+| Thuộc tính      | Giá trị                                         |
+| --------------- | ----------------------------------------------- |
+| **Use Case ID** | UC-05                                           |
+| **Tên**         | Heartbeat                                       |
+| **Actor**       | Peer                                            |
+| **Mô tả**       | Peer gửi heartbeat để duy trì trạng thái online |
 
 ### Preconditions
 - Peer đã đăng ký
@@ -182,12 +182,12 @@ Tài liệu này mô tả chi tiết các Use Cases của hệ thống P2P File 
 ## UC-06: Xem Dashboard
 
 ### Thông tin cơ bản
-| Thuộc tính | Giá trị |
-|------------|---------|
-| **Use Case ID** | UC-06 |
-| **Tên** | Xem Dashboard |
-| **Actor** | Dashboard User |
-| **Mô tả** | Xem trạng thái hệ thống realtime |
+| Thuộc tính      | Giá trị                          |
+| --------------- | -------------------------------- |
+| **Use Case ID** | UC-06                            |
+| **Tên**         | Xem Dashboard                    |
+| **Actor**       | Dashboard User                   |
+| **Mô tả**       | Xem trạng thái hệ thống realtime |
 
 ### Preconditions
 - Truy cập được URL dashboard
@@ -214,12 +214,12 @@ Tài liệu này mô tả chi tiết các Use Cases của hệ thống P2P File 
 ## UC-07: NAT Traversal
 
 ### Thông tin cơ bản
-| Thuộc tính | Giá trị |
-|------------|---------|
-| **Use Case ID** | UC-07 |
-| **Tên** | NAT Traversal |
-| **Actor** | Peer (behind NAT) |
-| **Mô tả** | Peer kết nối với peer khác qua NAT |
+| Thuộc tính      | Giá trị                            |
+| --------------- | ---------------------------------- |
+| **Use Case ID** | UC-07                              |
+| **Tên**         | NAT Traversal                      |
+| **Actor**       | Peer (behind NAT)                  |
+| **Mô tả**       | Peer kết nối với peer khác qua NAT |
 
 ### Preconditions
 - Cả 2 peers đều behind NAT
@@ -246,12 +246,12 @@ Tài liệu này mô tả chi tiết các Use Cases của hệ thống P2P File 
 ## UC-08: Generate Magnet Link
 
 ### Thông tin cơ bản
-| Thuộc tính | Giá trị |
-|------------|---------|
-| **Use Case ID** | UC-08 |
-| **Tên** | Generate Magnet Link |
-| **Actor** | Peer (Seeder) |
-| **Mô tả** | Tạo magnet link để share file |
+| Thuộc tính      | Giá trị                       |
+| --------------- | ----------------------------- |
+| **Use Case ID** | UC-08                         |
+| **Tên**         | Generate Magnet Link          |
+| **Actor**       | Peer (Seeder)                 |
+| **Mô tả**       | Tạo magnet link để share file |
 
 ### Main Flow
 1. Peer gửi `GET /api/files/{hash}/magnet`
@@ -271,12 +271,12 @@ magnet:?xt=urn:sha256:{hash}&dn={name}&xl={size}&tr={tracker_url}
 ## UC-09: Admin Quản Lý
 
 ### Thông tin cơ bản
-| Thuộc tính | Giá trị |
-|------------|---------|
-| **Use Case ID** | UC-09 |
-| **Tên** | Admin Quản Lý |
-| **Actor** | Admin |
-| **Mô tả** | Quản trị hệ thống P2P |
+| Thuộc tính      | Giá trị               |
+| --------------- | --------------------- |
+| **Use Case ID** | UC-09                 |
+| **Tên**         | Admin Quản Lý         |
+| **Actor**       | Admin                 |
+| **Mô tả**       | Quản trị hệ thống P2P |
 
 ### Main Flows
 1. **Xem danh sách peers**: `GET /api/admin/peers`
@@ -293,12 +293,12 @@ magnet:?xt=urn:sha256:{hash}&dn={name}&xl={size}&tr={tracker_url}
 ## UC-10: Resume Download
 
 ### Thông tin cơ bản
-| Thuộc tính | Giá trị |
-|------------|---------|
-| **Use Case ID** | UC-10 |
-| **Tên** | Resume Download |
-| **Actor** | Peer (Leecher) |
-| **Mô tả** | Tiếp tục download sau khi bị gián đoạn |
+| Thuộc tính      | Giá trị                                |
+| --------------- | -------------------------------------- |
+| **Use Case ID** | UC-10                                  |
+| **Tên**         | Resume Download                        |
+| **Actor**       | Peer (Leecher)                         |
+| **Mô tả**       | Tiếp tục download sau khi bị gián đoạn |
 
 ### Preconditions
 - Download bị gián đoạn
@@ -352,16 +352,16 @@ magnet:?xt=urn:sha256:{hash}&dn={name}&xl={size}&tr={tracker_url}
 
 ## Traceability Matrix
 
-| Use Case | API Endpoints | Packages |
-|----------|---------------|----------|
-| UC-01 | POST /api/peers/register | api/handlers.go |
-| UC-02 | POST /api/files/announce | api/handlers.go, pkg/chunker |
-| UC-03 | GET /api/files/search | api/handlers.go |
-| UC-04 | GET /api/files/{hash}/peers, TCP P2P | pkg/protocol, peer/p2p |
-| UC-05 | POST /api/peers/heartbeat | api/handlers.go |
-| UC-06 | GET /dashboard, WS /ws | api/dashboard.go, api/websocket.go |
-| UC-07 | WS /relay | pkg/holepunch, api/relay.go |
-| UC-08 | GET /api/files/{hash}/magnet | pkg/magnet, api/handlers.go |
-| UC-09 | /api/admin/* | api/handlers.go |
-| UC-10 | - | peer/storage |
+| Use Case | API Endpoints                        | Packages                           |
+| -------- | ------------------------------------ | ---------------------------------- |
+| UC-01    | POST /api/peers/register             | api/handlers.go                    |
+| UC-02    | POST /api/files/announce             | api/handlers.go, pkg/chunker       |
+| UC-03    | GET /api/files/search                | api/handlers.go                    |
+| UC-04    | GET /api/files/{hash}/peers, TCP P2P | pkg/protocol, peer/p2p             |
+| UC-05    | POST /api/peers/heartbeat            | api/handlers.go                    |
+| UC-06    | GET /dashboard, WS /ws               | api/dashboard.go, api/websocket.go |
+| UC-07    | WS /relay                            | pkg/holepunch, api/relay.go        |
+| UC-08    | GET /api/files/{hash}/magnet         | pkg/magnet, api/handlers.go        |
+| UC-09    | /api/admin/*                         | api/handlers.go                    |
+| UC-10    | -                                    | peer/storage                       |
 

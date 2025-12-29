@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/p2p-filesharing/distributed-system/pkg/chunker"
+	"github.com/p2p-filesharing/distributed-system/pkg/magnet"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/client"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/downloader"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/p2p"
@@ -288,6 +289,12 @@ func cmdShare(filepath string, tracker *client.TrackerClient, store *storage.Loc
 	fmt.Printf("Shared: %s\n", metadata.Name)
 	fmt.Printf("Hash: %s\n", resp.FileID)
 	fmt.Printf("Chunks: %d\n", len(metadata.Chunks))
+
+	// Generate magnet link
+	m := magnet.New(metadata.Hash, metadata.Name, metadata.Size).
+		AddTracker("https://p2p.idist.dev").
+		SetChunkInfo(int(metadata.ChunkSize), len(metadata.Chunks))
+	fmt.Printf("Magnet: %s\n", m.String())
 }
 
 func cmdList(tracker *client.TrackerClient) {

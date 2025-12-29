@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/p2p-filesharing/distributed-system/pkg/chunker"
 	"github.com/p2p-filesharing/distributed-system/pkg/hash"
 	"github.com/p2p-filesharing/distributed-system/pkg/protocol"
+	"github.com/p2p-filesharing/distributed-system/pkg/throttle"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/p2p"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/relay"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/storage"
@@ -53,13 +55,14 @@ type ChunkTask struct {
 
 // Downloader handles file downloads from peers with parallel chunk support
 type Downloader struct {
-	storage      *storage.LocalStorage
-	p2pClient    *p2p.Client
-	relayClient  *relay.Client
-	chunker      *chunker.Chunker
-	maxWorkers   int
-	chunkTimeout time.Duration
-	maxRetries   int
+	storage          *storage.LocalStorage
+	p2pClient        *p2p.Client
+	relayClient      *relay.Client
+	chunker          *chunker.Chunker
+	bandwidthManager *throttle.BandwidthManager
+	maxWorkers       int
+	chunkTimeout     time.Duration
+	maxRetries       int
 }
 
 // New creates a new Downloader
@@ -102,6 +105,33 @@ func NewWithConfig(store *storage.LocalStorage, client *p2p.Client, maxWorkers, 
 // SetRelayClient sets the relay client for fallback connections
 func (d *Downloader) SetRelayClient(client *relay.Client) {
 	d.relayClient = client
+}
+
+// SetBandwidthLimit sets download bandwidth limit (bytes per second, 0 = unlimited)
+func (d *Downloader) SetBandwidthLimit(bytesPerSecond int64) {
+	if bytesPerSecond > 0 {
+		d.bandwidthManager = throttle.NewBandwidthManager(0, bytesPerSecond)
+		log.Printf("[Downloader] Bandwidth limit set to %d bytes/sec", bytesPerSecond)
+	} else {
+		d.bandwidthManager = nil
+	}
+}
+
+// GetBandwidthStats returns current bandwidth statistics
+func (d *Downloader) GetBandwidthStats() *throttle.BandwidthStats {
+	if d.bandwidthManager == nil {
+		return nil
+	}
+	stats := d.bandwidthManager.GetStats()
+	return &stats
+}
+
+// ThrottleChunk applies bandwidth limiting to chunk data
+func (d *Downloader) ThrottleChunk(ctx context.Context, size int64) {
+	if d.bandwidthManager != nil {
+		_, downloadLimit := d.bandwidthManager.GetLimits()
+		d.bandwidthManager.SetDownloadLimit(downloadLimit)
+	}
 }
 
 // DownloadFile downloads a file from available peers using parallel chunk downloads

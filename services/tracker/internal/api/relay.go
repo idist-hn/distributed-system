@@ -77,7 +77,7 @@ func NewRelayHub() *RelayHub {
 		peers:      make(map[string]*RelayPeer),
 		register:   make(chan *RelayPeer),
 		unregister: make(chan *RelayPeer),
-		relay:      make(chan *RelayMessage, 256),
+		relay:      make(chan *RelayMessage, 1024), // Increased buffer for better throughput
 	}
 }
 
@@ -134,22 +134,28 @@ func (h *RelayHub) forwardMessage(msg *RelayMessage) {
 		return
 	}
 
-	// Parse chunk request for detailed logging
+	// Parse chunk request for detailed logging (reduced frequency)
 	if msg.Type == RelayMsgChunkRequest {
 		var req RelayChunkRequest
 		if err := json.Unmarshal(msg.Payload, &req); err == nil {
-			fileHashShort := req.FileHash
-			if len(fileHashShort) > 12 {
-				fileHashShort = fileHashShort[:12]
+			// Only log every 100th chunk request to reduce noise
+			if req.ChunkIndex%100 == 0 {
+				fileHashShort := req.FileHash
+				if len(fileHashShort) > 12 {
+					fileHashShort = fileHashShort[:12]
+				}
+				log.Printf("[Relay] Chunk request: %s -> %s, file=%s, chunk=%d",
+					fromShort, toShort, fileHashShort, req.ChunkIndex)
 			}
-			log.Printf("[Relay] Chunk request: %s -> %s, file=%s, chunk=%d",
-				fromShort, toShort, fileHashShort, req.ChunkIndex)
 		}
 	} else if msg.Type == RelayMsgChunkData {
 		var resp RelayChunkResponse
 		if err := json.Unmarshal(msg.Payload, &resp); err == nil {
-			log.Printf("[Relay] Chunk response: %s -> %s, chunk=%d, size=%d bytes",
-				fromShort, toShort, resp.ChunkIndex, len(resp.Data))
+			// Only log every 100th chunk response
+			if resp.ChunkIndex%100 == 0 {
+				log.Printf("[Relay] Chunk response: %s -> %s, chunk=%d, size=%d bytes",
+					fromShort, toShort, resp.ChunkIndex, len(resp.Data))
+			}
 		}
 	}
 

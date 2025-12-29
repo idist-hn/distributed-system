@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/p2p-filesharing/distributed-system/pkg/magnet"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/downloader"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/p2p"
 	"github.com/p2p-filesharing/distributed-system/services/peer/internal/relay"
@@ -18,13 +19,33 @@ import (
 func main() {
 	trackerURL := flag.String("tracker", "https://p2p.idist.dev", "Tracker server URL")
 	fileHash := flag.String("hash", "", "File hash to download")
+	magnetURI := flag.String("magnet", "", "Magnet URI to download")
 	outputDir := flag.String("output", "./downloads", "Output directory")
 	listFiles := flag.Bool("list", false, "List available files")
 	flag.Parse()
 
-	// Handle positional argument for hash
-	if *fileHash == "" && flag.NArg() > 0 {
-		*fileHash = flag.Arg(0)
+	// Handle positional argument for hash or magnet
+	if *fileHash == "" && *magnetURI == "" && flag.NArg() > 0 {
+		arg := flag.Arg(0)
+		if strings.HasPrefix(arg, "magnet:?") {
+			*magnetURI = arg
+		} else {
+			*fileHash = arg
+		}
+	}
+
+	// Parse magnet URI if provided
+	if *magnetURI != "" {
+		m, err := magnet.Parse(*magnetURI)
+		if err != nil {
+			log.Fatalf("Invalid magnet URI: %v", err)
+		}
+		*fileHash = m.InfoHash
+		// Use tracker from magnet if available
+		if len(m.Trackers) > 0 {
+			*trackerURL = m.Trackers[0]
+		}
+		fmt.Printf("Magnet: %s\n", m.DisplayName)
 	}
 
 	// Create simple tracker client (no auth needed for public APIs)
@@ -51,12 +72,13 @@ func main() {
 	}
 
 	if *fileHash == "" {
-		fmt.Println("Usage: p2p-download [options] <hash>")
+		fmt.Println("Usage: p2p-download [options] <hash|magnet>")
 		fmt.Println("\nOptions:")
 		flag.PrintDefaults()
 		fmt.Println("\nExamples:")
 		fmt.Println("  p2p-download --list                  # List available files")
 		fmt.Println("  p2p-download abc123def456            # Download file by hash")
+		fmt.Println("  p2p-download 'magnet:?xt=urn:sha256:abc123&dn=file.txt'")
 		fmt.Println("  p2p-download --output /tmp abc123    # Download to specific directory")
 		os.Exit(1)
 	}
