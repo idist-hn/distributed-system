@@ -32,7 +32,6 @@ Hệ thống chia sẻ file ngang hàng (P2P) cho phép các peer trao đổi fi
 │  │  └─────────────┘  └─────────────┘  └─────────────┘                  ││
 │  └─────────────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────────┘
-```
                               │
         ┌─────────────────────┼─────────────────────┐
         │                     │                     │
@@ -62,40 +61,40 @@ Hệ thống chia sẻ file ngang hàng (P2P) cho phép các peer trao đổi fi
 
 ### 3.1 Tracker Server
 
-| Module | File | Chức năng |
-|--------|------|-----------|
-| REST API | `api/handlers.go` | CRUD peers, files |
-| WebSocket | `api/websocket.go` | Real-time events |
-| Relay Hub | `api/relay.go` | NAT traversal relay |
-| Dashboard | `api/dashboard.go` | Web UI monitoring |
-| Middleware | `api/middleware.go` | Auth, logging, metrics |
-| Storage | `storage/storage.go` | In-memory data store |
+| Module     | File                 | Chức năng              |
+| ---------- | -------------------- | ---------------------- |
+| REST API   | `api/handlers.go`    | CRUD peers, files      |
+| WebSocket  | `api/websocket.go`   | Real-time events       |
+| Relay Hub  | `api/relay.go`       | NAT traversal relay    |
+| Dashboard  | `api/dashboard.go`   | Web UI monitoring      |
+| Middleware | `api/middleware.go`  | Auth, logging, metrics |
+| Storage    | `storage/storage.go` | In-memory data store   |
 
 ### 3.2 Peer Node
 
-| Module | File | Chức năng |
-|--------|------|-----------|
-| Tracker Client | `client/tracker.go` | API communication |
-| P2P Server | `p2p/server.go` | TCP listener for chunks |
-| P2P Client | `p2p/client.go` | Request chunks from peers |
-| Connection Manager | `connection/manager.go` | Strategy: Direct→Punch→Relay |
-| Downloader | `downloader/downloader.go` | Parallel chunk downloads |
-| Relay Client | `relay/client.go` | WebSocket relay tunnel |
-| Storage | `storage/local.go` | File & chunk management |
+| Module             | File                       | Chức năng                    |
+| ------------------ | -------------------------- | ---------------------------- |
+| Tracker Client     | `client/tracker.go`        | API communication            |
+| P2P Server         | `p2p/server.go`            | TCP listener for chunks      |
+| P2P Client         | `p2p/client.go`            | Request chunks from peers    |
+| Connection Manager | `connection/manager.go`    | Strategy: Direct→Punch→Relay |
+| Downloader         | `downloader/downloader.go` | Parallel chunk downloads     |
+| Relay Client       | `relay/client.go`          | WebSocket relay tunnel       |
+| Storage            | `storage/local.go`         | File & chunk management      |
 
 ### 3.3 Shared Packages (pkg/)
 
-| Package | Chức năng |
-|---------|-----------|
-| `chunker` | Chia file thành chunks 256KB |
-| `hash` | SHA-256 hashing |
-| `protocol` | Message definitions |
-| `crypto` | E2E encryption (X25519 + AES-GCM) |
-| `dht` | Kademlia DHT |
-| `holepunch` | UDP NAT hole punching |
-| `merkle` | Merkle tree verification |
-| `throttle` | Bandwidth limiting |
-| `logger` | Structured logging |
+| Package     | Chức năng                         |
+| ----------- | --------------------------------- |
+| `chunker`   | Chia file thành chunks 256KB      |
+| `hash`      | SHA-256 hashing                   |
+| `protocol`  | Message definitions               |
+| `crypto`    | E2E encryption (X25519 + AES-GCM) |
+| `dht`       | Kademlia DHT                      |
+| `holepunch` | UDP NAT hole punching             |
+| `merkle`    | Merkle tree verification          |
+| `throttle`  | Bandwidth limiting                |
+| `logger`    | Structured logging                |
 
 ## 4. Connection Strategy
 
@@ -240,15 +239,15 @@ type ChunkInfo struct {
 
 ## 8. Công Nghệ Sử Dụng
 
-| Thành phần | Công nghệ | Ghi chú |
-|------------|-----------|---------|
-| Ngôn ngữ | Go 1.21+ | Performance, concurrency |
-| HTTP Framework | gorilla/mux | Routing, middleware |
-| WebSocket | gorilla/websocket | Real-time, relay |
-| Crypto | x/crypto | X25519, HKDF |
-| Container | Docker | Containerization |
-| Orchestration | Kubernetes | Scaling, deployment |
-| Ingress | NGINX | TLS termination |
+| Thành phần     | Công nghệ         | Ghi chú                  |
+| -------------- | ----------------- | ------------------------ |
+| Ngôn ngữ       | Go 1.21+          | Performance, concurrency |
+| HTTP Framework | gorilla/mux       | Routing, middleware      |
+| WebSocket      | gorilla/websocket | Real-time, relay         |
+| Crypto         | x/crypto          | X25519, HKDF             |
+| Container      | Docker            | Containerization         |
+| Orchestration  | Kubernetes        | Scaling, deployment      |
+| Ingress        | NGINX             | TLS termination          |
 
 ## 9. Deployment
 

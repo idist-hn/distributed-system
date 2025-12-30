@@ -230,12 +230,12 @@ const (
 
 ## 4. Error Codes
 
-| Code | Message | Description |
-|------|---------|-------------|
-| 1001 | PEER_NOT_FOUND | Peer không tồn tại |
-| 1002 | FILE_NOT_FOUND | File không tồn tại |
+| Code | Message             | Description             |
+| ---- | ------------------- | ----------------------- |
+| 1001 | PEER_NOT_FOUND      | Peer không tồn tại      |
+| 1002 | FILE_NOT_FOUND      | File không tồn tại      |
 | 1003 | CHUNK_NOT_AVAILABLE | Peer không có chunk này |
-| 1004 | HASH_MISMATCH | Hash không khớp |
-| 1005 | CONNECTION_REFUSED | Từ chối kết nối |
-| 1006 | RELAY_TIMEOUT | Relay request timeout |
+| 1004 | HASH_MISMATCH       | Hash không khớp         |
+| 1005 | CONNECTION_REFUSED  | Từ chối kết nối         |
+| 1006 | RELAY_TIMEOUT       | Relay request timeout   |
 

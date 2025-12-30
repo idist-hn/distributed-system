@@ -7,43 +7,43 @@ Tài liệu này mô tả lộ trình phát triển các tính năng tiếp theo
 ## ✅ Đã Hoàn Thành
 
 ### Phase 1: Core System
-| Feature | Package | Status |
-|---------|---------|--------|
-| Tracker Server | `services/tracker` | ✅ |
-| Peer Node | `services/peer` | ✅ |
-| File Chunking | `pkg/chunker` | ✅ |
-| SHA-256 Hashing | `pkg/hash` | ✅ |
-| REST API | `services/tracker/internal/api` | ✅ |
-| P2P TCP Transfer | `services/peer/internal/p2p` | ✅ |
+| Feature          | Package                         | Status |
+| ---------------- | ------------------------------- | ------ |
+| Tracker Server   | `services/tracker`              | ✅      |
+| Peer Node        | `services/peer`                 | ✅      |
+| File Chunking    | `pkg/chunker`                   | ✅      |
+| SHA-256 Hashing  | `pkg/hash`                      | ✅      |
+| REST API         | `services/tracker/internal/api` | ✅      |
+| P2P TCP Transfer | `services/peer/internal/p2p`    | ✅      |
 
 ### Phase 2: Connection Strategy
-| Feature | Package | Status |
-|---------|---------|--------|
-| Direct TCP | `services/peer/internal/p2p` | ✅ |
-| WebSocket Relay | `services/tracker/internal/api/relay.go` | ✅ |
-| NAT Hole Punching | `pkg/holepunch` | ✅ |
-| Connection Manager | `services/peer/internal/connection` | ✅ |
+| Feature            | Package                                  | Status |
+| ------------------ | ---------------------------------------- | ------ |
+| Direct TCP         | `services/peer/internal/p2p`             | ✅      |
+| WebSocket Relay    | `services/tracker/internal/api/relay.go` | ✅      |
+| NAT Hole Punching  | `pkg/holepunch`                          | ✅      |
+| Connection Manager | `services/peer/internal/connection`      | ✅      |
 
 ### Phase 3: Advanced Features
-| Feature | Package | Documentation |
-|---------|---------|---------------|
-| Parallel Downloads | `services/peer/internal/downloader` | [docs](features/parallel-chunk-downloads.md) |
-| Resume/Pause | `services/peer/internal/storage` | [docs](features/resume-pause-downloads.md) |
-| E2E Encryption | `pkg/crypto` | [docs](features/end-to-end-encryption.md) |
-| DHT Kademlia | `pkg/dht` | [docs](features/dht-kademlia.md) |
-| Web Dashboard | `services/tracker/internal/api/dashboard.go` | [docs](features/web-ui-dashboard.md) |
-| Bandwidth Throttling | `pkg/throttle` | [docs](features/bandwidth-throttling.md) |
-| Merkle Verification | `pkg/merkle` | [docs](features/merkle-tree-verification.md) |
+| Feature              | Package                                      | Documentation                                |
+| -------------------- | -------------------------------------------- | -------------------------------------------- |
+| Parallel Downloads   | `services/peer/internal/downloader`          | [docs](features/parallel-chunk-downloads.md) |
+| Resume/Pause         | `services/peer/internal/storage`             | [docs](features/resume-pause-downloads.md)   |
+| E2E Encryption       | `pkg/crypto`                                 | [docs](features/end-to-end-encryption.md)    |
+| DHT Kademlia         | `pkg/dht`                                    | [docs](features/dht-kademlia.md)             |
+| Web Dashboard        | `services/tracker/internal/api/dashboard.go` | [docs](features/web-ui-dashboard.md)         |
+| Bandwidth Throttling | `pkg/throttle`                               | [docs](features/bandwidth-throttling.md)     |
+| Merkle Verification  | `pkg/merkle`                                 | [docs](features/merkle-tree-verification.md) |
 
 ### Phase 4: Production Hardening ✅
-| Feature | Package | Status |
-|---------|---------|--------|
-| PostgreSQL Storage | `services/tracker/internal/storage/postgres.go` | ✅ |
-| JWT Authentication | `services/tracker/internal/api/jwt.go` | ✅ |
-| Rate Limiting | `services/tracker/internal/api/ratelimit.go` | ✅ |
-| Prometheus Metrics | `services/tracker/internal/api/prometheus.go` | ✅ |
-| Grafana Dashboard | `k8s/grafana-dashboard.json` | ✅ |
-| API Key Auth | `services/tracker/internal/api/middleware.go` | ✅ |
+| Feature            | Package                                         | Status |
+| ------------------ | ----------------------------------------------- | ------ |
+| PostgreSQL Storage | `services/tracker/internal/storage/postgres.go` | ✅      |
+| JWT Authentication | `services/tracker/internal/api/jwt.go`          | ✅      |
+| Rate Limiting      | `services/tracker/internal/api/ratelimit.go`    | ✅      |
+| Prometheus Metrics | `services/tracker/internal/api/prometheus.go`   | ✅      |
+| Grafana Dashboard  | `k8s/grafana-dashboard.json`                    | ✅      |
+| API Key Auth       | `services/tracker/internal/api/middleware.go`   | ✅      |
 
 **Endpoints**:
 - `/metrics` - Prometheus metrics
@@ -72,11 +72,11 @@ Tài liệu này mô tả lộ trình phát triển các tính năng tiếp theo
                    └──────────────┘
 ```
 
-| Task | Mô tả | Độ phức tạp |
-|------|-------|-------------|
-| Leader Election | Raft/etcd for consensus | ⭐⭐⭐⭐ |
-| State Replication | Sync peer/file data | ⭐⭐⭐ |
-| Load Balancing | Distribute peer connections | ⭐⭐ |
+| Task              | Mô tả                       | Độ phức tạp |
+| ----------------- | --------------------------- | ----------- |
+| Leader Election   | Raft/etcd for consensus     | ⭐⭐⭐⭐        |
+| State Replication | Sync peer/file data         | ⭐⭐⭐         |
+| Load Balancing    | Distribute peer connections | ⭐⭐          |
 
 ### 5.2 Supernode Architecture
 **Mục tiêu**: Peers với nhiều tài nguyên làm relay
@@ -98,11 +98,11 @@ Tài liệu này mô tả lộ trình phát triển các tính năng tiếp theo
 └────────┘  └────────┘  └────────┘  └────────┘
 ```
 
-| Task | Mô tả | Độ phức tạp |
-|------|-------|-------------|
-| Supernode Selection | Algorithm để chọn supernodes | ⭐⭐⭐ |
-| Relay Load Balancing | Phân tải relay connections | ⭐⭐ |
-| Incentive Mechanism | Reward supernodes | ⭐⭐⭐ |
+| Task                 | Mô tả                        | Độ phức tạp |
+| -------------------- | ---------------------------- | ----------- |
+| Supernode Selection  | Algorithm để chọn supernodes | ⭐⭐⭐         |
+| Relay Load Balancing | Phân tải relay connections   | ⭐⭐          |
+| Incentive Mechanism  | Reward supernodes            | ⭐⭐⭐         |
 
 ---
 
@@ -111,44 +111,44 @@ Tài liệu này mô tả lộ trình phát triển các tính năng tiếp theo
 ### 6.1 Smart Piece Selection ✅
 **Status**: Implemented in `pkg/pieceselection`
 
-| Algorithm | Package | Status |
-|-----------|---------|--------|
-| Rarest First | `pieceselection.NewRarestFirstSelector()` | ✅ |
-| Random First | `pieceselection.NewRandomFirstSelector()` | ✅ |
-| Sequential | `pieceselection.NewSequentialSelector()` | ✅ |
-| Endgame Mode | `pieceselection.NewEndgameSelector()` | ✅ |
+| Algorithm    | Package                                   | Status |
+| ------------ | ----------------------------------------- | ------ |
+| Rarest First | `pieceselection.NewRarestFirstSelector()` | ✅      |
+| Random First | `pieceselection.NewRandomFirstSelector()` | ✅      |
+| Sequential   | `pieceselection.NewSequentialSelector()`  | ✅      |
+| Endgame Mode | `pieceselection.NewEndgameSelector()`     | ✅      |
 
 ### 6.2 Peer Scoring & Selection ✅
 **Status**: Implemented in `pkg/peerscore`
 
-| Metric | Weight | Status |
-|--------|--------|--------|
-| Download Speed | 30% | ✅ |
-| Upload Ratio | 20% | ✅ |
-| Reliability | 25% | ✅ |
-| Latency | 15% | ✅ |
-| Recency | 10% | ✅ |
+| Metric         | Weight | Status |
+| -------------- | ------ | ------ |
+| Download Speed | 30%    | ✅      |
+| Upload Ratio   | 20%    | ✅      |
+| Reliability    | 25%    | ✅      |
+| Latency        | 15%    | ✅      |
+| Recency        | 10%    | ✅      |
 
 ### 6.3 Content Discovery ✅
 **Status**: Implemented
 
-| Task | Package/Endpoint | Status |
-|------|------------------|--------|
-| Full-text Search | `GET /api/files/search?q=` | ✅ |
-| Tag-based Discovery | `GET /api/categories` | ✅ |
-| Magnet Links | `pkg/magnet`, `GET /api/files/{hash}/magnet` | ✅ |
-| Parse Magnet | `GET /api/magnet?uri=` | ✅ |
+| Task                | Package/Endpoint                             | Status |
+| ------------------- | -------------------------------------------- | ------ |
+| Full-text Search    | `GET /api/files/search?q=`                   | ✅      |
+| Tag-based Discovery | `GET /api/categories`                        | ✅      |
+| Magnet Links        | `pkg/magnet`, `GET /api/files/{hash}/magnet` | ✅      |
+| Parse Magnet        | `GET /api/magnet?uri=`                       | ✅      |
 
 ### 6.4 WebSocket Real-time ✅
 **Status**: Implemented
 
-| Feature | Description | Status |
-|---------|-------------|--------|
-| WebSocket Hub | Manage client connections | ✅ |
-| Stats Broadcast | Send stats every 5s | ✅ |
-| Event Notifications | peer_joined, file_added, etc. | ✅ |
-| Auto-reconnect | Client-side reconnect with backoff | ✅ |
-| Live Dashboard | Real-time updates without refresh | ✅ |
+| Feature             | Description                        | Status |
+| ------------------- | ---------------------------------- | ------ |
+| WebSocket Hub       | Manage client connections          | ✅      |
+| Stats Broadcast     | Send stats every 5s                | ✅      |
+| Event Notifications | peer_joined, file_added, etc.      | ✅      |
+| Auto-reconnect      | Client-side reconnect with backoff | ✅      |
+| Live Dashboard      | Real-time updates without refresh  | ✅      |
 
 ---
 
@@ -157,26 +157,26 @@ Tài liệu này mô tả lộ trình phát triển các tính năng tiếp theo
 ### 7.1 Desktop Application
 **Mục tiêu**: Cross-platform GUI app
 
-| Platform | Technology | Status |
-|----------|------------|--------|
-| Windows | Wails/Electron | 📋 Planned |
-| macOS | Wails/Electron | 📋 Planned |
-| Linux | Wails/Electron | 📋 Planned |
+| Platform | Technology     | Status    |
+| -------- | -------------- | --------- |
+| Windows  | Wails/Electron | 📋 Planned |
+| macOS    | Wails/Electron | 📋 Planned |
+| Linux    | Wails/Electron | 📋 Planned |
 
 ### 7.2 Mobile Application
 **Mục tiêu**: P2P file sharing trên mobile
 
-| Platform | Technology | Status |
-|----------|------------|--------|
-| Android | Flutter/React Native | 📋 Planned |
-| iOS | Flutter/React Native | 📋 Planned |
+| Platform | Technology           | Status    |
+| -------- | -------------------- | --------- |
+| Android  | Flutter/React Native | 📋 Planned |
+| iOS      | Flutter/React Native | 📋 Planned |
 
 ### 7.3 Web Application
 **Mục tiêu**: Browser-based file sharing
 
-| Feature | Technology | Status |
-|---------|------------|--------|
-| WebRTC P2P | libp2p.js | 📋 Planned |
+| Feature     | Technology     | Status    |
+| ----------- | -------------- | --------- |
+| WebRTC P2P  | libp2p.js      | 📋 Planned |
 | PWA Support | Service Worker | 📋 Planned |
 
 ---
@@ -185,20 +185,20 @@ Tài liệu này mô tả lộ trình phát triển các tính năng tiếp theo
 
 ### ✅ Already Implemented
 
-| Phase | Features | Status |
-|-------|----------|--------|
-| Phase 1 | Tracker, Peer, Chunker, Hash | ✅ Complete |
-| Phase 2 | Direct TCP, Relay, Hole Punching | ✅ Complete |
-| Phase 3 | Parallel Downloads, E2E Encryption, DHT | ✅ Complete |
-| Phase 4 | PostgreSQL, JWT, Rate Limit, Prometheus | ✅ Complete |
+| Phase   | Features                                 | Status     |
+| ------- | ---------------------------------------- | ---------- |
+| Phase 1 | Tracker, Peer, Chunker, Hash             | ✅ Complete |
+| Phase 2 | Direct TCP, Relay, Hole Punching         | ✅ Complete |
+| Phase 3 | Parallel Downloads, E2E Encryption, DHT  | ✅ Complete |
+| Phase 4 | PostgreSQL, JWT, Rate Limit, Prometheus  | ✅ Complete |
 | Phase 6 | Piece Selection, Magnet Links, WebSocket | ✅ Complete |
 
 ### 📋 Remaining Work
 
-| Phase | Features | Priority |
-|-------|----------|----------|
-| Phase 5 | Tracker Clustering, Supernode | Medium |
-| Phase 7 | Desktop App, Mobile App, WebRTC | Low |
+| Phase   | Features                        | Priority |
+| ------- | ------------------------------- | -------- |
+| Phase 5 | Tracker Clustering, Supernode   | Medium   |
+| Phase 7 | Desktop App, Mobile App, WebRTC | Low      |
 
 ### Next Steps Recommendation
 

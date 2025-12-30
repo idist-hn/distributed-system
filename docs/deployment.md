@@ -20,6 +20,17 @@ make build
 ./bin/peer -port 6881 -data ./data -tracker http://localhost:8080
 ```
 
+### Peer Command Options
+
+| Flag         | Default               | Description                              |
+| ------------ | --------------------- | ---------------------------------------- |
+| `-port`      | 6881                  | P2P listen port                          |
+| `-data`      | ./data                | Data directory                           |
+| `-tracker`   | http://localhost:8080 | Tracker URL                              |
+| `-api-key`   | ""                    | API key for tracker                      |
+| `-daemon`    | false                 | Run in daemon mode                       |
+| `-bandwidth` | 0                     | Bandwidth limit (bytes/sec, 0=unlimited) |
+
 ## 3. Docker Deployment
 
 ### Build Images
@@ -76,12 +87,12 @@ kubectl get svc -n p2p-system
 
 ### Key Resources
 
-| Resource | File | Description |
-|----------|------|-------------|
-| Namespace | `namespace.yaml` | p2p-system namespace |
-| Tracker | `tracker-deployment.yaml` | Tracker deployment + service |
-| Ingress | `ingress.yaml` | NGINX ingress with TLS |
-| Secrets | `registry-secret.yaml` | Docker registry credentials |
+| Resource  | File                      | Description                  |
+| --------- | ------------------------- | ---------------------------- |
+| Namespace | `namespace.yaml`          | p2p-system namespace         |
+| Tracker   | `tracker-deployment.yaml` | Tracker deployment + service |
+| Ingress   | `ingress.yaml`            | NGINX ingress with TLS       |
+| Secrets   | `registry-secret.yaml`    | Docker registry credentials  |
 
 ### Environment Variables
 
@@ -161,4 +172,3 @@ Tracker exposes metrics at `/metrics`:
 ### Grafana Dashboard
 
 Import `k8s/grafana-dashboard.json` for pre-built dashboard.
-
